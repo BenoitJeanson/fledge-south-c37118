@@ -63,7 +63,7 @@ add_library(${PROJECT_NAME} SHARED ${SOURCES} version.h)
 # Add Fledge library names 
 target_link_libraries(${PROJECT_NAME} ${NEEDED_FLEDGE_LIBS})
 
-target_link_libraries(${PROJECT_NAME} -L/home/benoit/Dev/Open-C37.118/src/.libs/ -lopenc37118-1.0)
+target_link_libraries(${PROJECT_NAME} -L/usr/local/lib -lopenc37118-1.0)
 # Set the build version 
 set_target_properties(${PROJECT_NAME} PROPERTIES SOVERSION 1)
 

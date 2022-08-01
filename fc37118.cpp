@@ -137,8 +137,8 @@ Reading FC37118::dataFrameToReading()
     {
         auto phase_datapoints = new vector<Datapoint *>;
 
-        phase_datapoints->push_back(new Datapoint("abs", *new DatapointValue(abs(m_pmu_station->PHASOR_VALUE_get(k)))));
-        phase_datapoints->push_back(new Datapoint("arg", *new DatapointValue(arg(m_pmu_station->PHASOR_VALUE_get(k)) * 180 / M_PI)));
+        phase_datapoints->push_back(new Datapoint("magnitude", *new DatapointValue(abs(m_pmu_station->PHASOR_VALUE_get(k)))));
+        phase_datapoints->push_back(new Datapoint("angle", *new DatapointValue(arg(m_pmu_station->PHASOR_VALUE_get(k)) * 180 / M_PI)));
 
         DatapointValue dpv(phase_datapoints, true);
         ph_datapoints->push_back(new Datapoint(m_pmu_station->PH_NAME_get(k), dpv));
@@ -152,8 +152,17 @@ Reading FC37118::dataFrameToReading()
                                             *new DatapointValue(m_pmu_station->ANALOG_VALUE_get(k))));
     }
     auto datapoint_analogs = new Datapoint("Analogs", * new DatapointValue(analog_datapoints, true));
+
+    auto datapoint_FREQ = new Datapoint("FREQ", * new DatapointValue(m_pmu_station->FREQ_get()));
+    auto datapoint_DFREQ = new Datapoint("DFREQ", * new DatapointValue(m_pmu_station->DFREQ_get()));
     
-    Reading reading(m_pmu_station->STN_get(), {datapoint_phasors, datapoint_analogs});
+    auto freq_datapoints = new vector<Datapoint *>;
+    freq_datapoints->push_back(datapoint_FREQ);
+    freq_datapoints->push_back(datapoint_DFREQ);
+    
+    auto datapoint_frequency = new Datapoint("Frequency", * new DatapointValue(freq_datapoints, true));
+    
+    Reading reading(m_pmu_station->STN_get(), {datapoint_phasors, datapoint_analogs, datapoint_frequency});
     return reading;
 }
 
@@ -186,5 +195,6 @@ void FC37118::readForTest()
 
 FC37118::~FC37118()
 {
+    Logger::getLogger()->warn("shutting down");
     close(m_sockfd);
 }

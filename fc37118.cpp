@@ -143,25 +143,25 @@ Reading FC37118::dataFrameToReading()
         DatapointValue dpv(phase_datapoints, true);
         ph_datapoints->push_back(new Datapoint(m_pmu_station->PH_NAME_get(k), dpv));
     }
-    auto datapoint_phasors = new Datapoint("Phasors", * new DatapointValue(ph_datapoints, true));
+    auto datapoint_phasors = new Datapoint("Phasors", *new DatapointValue(ph_datapoints, true));
 
     auto analog_datapoints = new vector<Datapoint *>;
     for (int k = 0; k < m_pmu_station->ANNMR_get(); k++)
     {
         analog_datapoints->push_back(new Datapoint(m_pmu_station->AN_NAME_get(k),
-                                            *new DatapointValue(m_pmu_station->ANALOG_VALUE_get(k))));
+                                                   *new DatapointValue(m_pmu_station->ANALOG_VALUE_get(k))));
     }
-    auto datapoint_analogs = new Datapoint("Analogs", * new DatapointValue(analog_datapoints, true));
+    auto datapoint_analogs = new Datapoint("Analogs", *new DatapointValue(analog_datapoints, true));
 
-    auto datapoint_FREQ = new Datapoint("FREQ", * new DatapointValue(m_pmu_station->FREQ_get()));
-    auto datapoint_DFREQ = new Datapoint("DFREQ", * new DatapointValue(m_pmu_station->DFREQ_get()));
-    
+    auto datapoint_FREQ = new Datapoint("FREQ", *new DatapointValue(m_pmu_station->FREQ_get()));
+    auto datapoint_DFREQ = new Datapoint("DFREQ", *new DatapointValue(m_pmu_station->DFREQ_get()));
+
     auto freq_datapoints = new vector<Datapoint *>;
     freq_datapoints->push_back(datapoint_FREQ);
     freq_datapoints->push_back(datapoint_DFREQ);
-    
-    auto datapoint_frequency = new Datapoint("Frequency", * new DatapointValue(freq_datapoints, true));
-    
+
+    auto datapoint_frequency = new Datapoint("Frequency", *new DatapointValue(freq_datapoints, true));
+
     Reading reading(m_pmu_station->STN_get(), {datapoint_phasors, datapoint_analogs, datapoint_frequency});
     return reading;
 }

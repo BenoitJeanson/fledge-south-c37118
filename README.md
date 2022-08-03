@@ -24,5 +24,3 @@ in your local fledge-south-c37118 directory :
 ## Testing
 
 The plugin was tested using [pypmu](https://github.com/iicsys/pypmu).
-
-Note that `test-c37` is a lightweight executable to test the `fc37118.cpp` code that binds `open-c37.118` outside of Fledge (will be removed once the plugin is mature).

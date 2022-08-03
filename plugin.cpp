@@ -78,13 +78,13 @@ extern "C"
                 FC37118 *fc37118 = new FC37118(INET_ADDR, TCP_PORT);
                 if (config->itemExists("asset"))
                 {
-                        fc37118->setAssetName(config->getValue("asset"));
+                        fc37118->set_asset_name(config->getValue("asset"));
                 }
                 else
                 {
-                        fc37118->setAssetName("C37118");
+                        fc37118->set_asset_name("C37118");
                 }
-                Logger::getLogger()->info("m_assetName set to %s", fc37118->getAssetName());
+                Logger::getLogger()->info("m_assetName set to %s", fc37118->get_asset_name());
 
                 return (PLUGIN_HANDLE)fc37118;
         }
@@ -112,7 +112,7 @@ extern "C"
                         throw new exception();
 
                 auto *fc37118 = (FC37118 *)handle;
-                fc37118->registerIngest(data, cb);
+                fc37118->register_ingest(data, cb);
         }
         /**
          * Poll for a plugin reading
@@ -130,7 +130,7 @@ extern "C"
                 ConfigCategory conf("dht", newConfig);
                 auto *fc37118 = (FC37118 *)*handle;
                 if (conf.itemExists("asset"))
-                        fc37118->setAssetName(conf.getValue("asset"));
+                        fc37118->set_asset_name(conf.getValue("asset"));
         }
 
         /**

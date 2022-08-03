@@ -27,7 +27,13 @@
 #include "c37118header.h"
 #include "c37118command.h"
 
-#define SIZE_BUFFER 80000
+#define BUFFER_SIZE 80000
+
+#define C37118_CMD_TURNOFF_TX 0x01
+#define C37118_CMD_TURNON_TX 0x02
+#define C37118_CMD_SEND_DATA 0x03
+#define C37118_CMD_SEND_CONFIGURATION_1 0x04
+#define C37118_CMD_SEND_CONFIGURATION_2 0x05
 
 typedef void (*INGEST_CB)(void *, Reading);
 
@@ -38,21 +44,19 @@ public:
     FC37118(const char *inet_add, int portno);
     ~FC37118();
 
-    void setAssetName(const std::string &asset) { m_asset = asset; }
-    std::string getAssetName() { return m_asset; }
-    void sendCmd(int cmd, unsigned char *buffer_tx);
-    void kickOff();
+    void set_asset_name(const std::string &asset) { m_asset = asset; }
+    std::string get_asset_name() { return m_asset; }
     void start();
-    void registerIngest(void *data, INGEST_CB cb);
+    void register_ingest(void *data, INGEST_CB cb);
     void ingest(Reading &reading);
-    void receiveAndPushDatapoints();
 
 private:
     // when m_exit_promise is set when shutdown is requested and trigger stop to the threads through m_exit_future
-    std::promise<void> m_exit_promise;
-    std::future<void> m_exit_future;
-    bool m_shall_exit();
+    std::promise<void> m_terminate_promise;
+    std::future<void> m_terminate_future;
+    bool m_terminate();
 
+    std::thread *m_configuration_thread;
     std::thread *m_receiving_thread;
 
     // Connection to PMU
@@ -60,8 +64,8 @@ private:
     int m_portno;
     int m_sockfd;
     struct sockaddr_in m_serv_addr;
-    void m_connect();
-    void m_initPmuDialog();
+    bool m_connect();
+    void m_init_Pmu_Dialog(std::promise<void> *configuration_promise);
 
     // C37.118
     CMD_Frame *m_cmd;
@@ -69,11 +73,14 @@ private:
     HEADER_Frame *m_header;
     DATA_Frame *m_data_frame;
     PMU_Station *m_pmu_station;
+    bool m_send_cmd(int cmd);
 
     // Fledge
-    Reading dataFrameToReading();
+    Reading m_dataframe_to_reading();
     std::string m_asset;
     INGEST_CB m_ingest; // Callback function used to send data to south service
     void *m_data;       // Ingest function data
+
+    void m_receiveAndPushDatapoints(std::future<void> *configuration_future);
 };
 #endif

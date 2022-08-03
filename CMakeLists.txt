@@ -12,7 +12,7 @@ project(c37118)
 # If no -D options are given and FLEDGE_ROOT environment variable is set
 # then Fledge libraries and header files are pulled from FLEDGE_ROOT path.
 
-set(CMAKE_CXX_FLAGS "-std=c++11 -O3")
+set(CMAKE_CXX_FLAGS "-std=c++11 -O3 -pthread")
 
 # Generation version header file
 set_source_files_properties(version.h PROPERTIES GENERATED TRUE)
@@ -67,12 +67,6 @@ target_link_libraries(${PROJECT_NAME} -L/usr/local/lib -lopenc37118-1.0)
 # Set the build version 
 set_target_properties(${PROJECT_NAME} PROPERTIES SOVERSION 1)
 
-
-
-# TODO #################################################  to be removed once the tests are done
-add_executable(test-c37 test-c37.cpp fc37118.cpp)
-target_link_libraries(test-c37 /usr/lib/fledge/libcommon-lib.so  /usr/lib/fledge/libservices-common-lib.so)
-target_link_libraries(test-c37 -L/home/benoit/Dev/Open-C37.118/src/.libs/ -lopenc37118-1.0)
 
 set(FLEDGE_INSTALL "" CACHE INTERNAL "")
 # Install library

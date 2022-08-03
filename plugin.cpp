@@ -1,11 +1,11 @@
 /*
  * Fledge south plugin.
- *
- * Copyright (c) 2018 OSisoft, LLC
- *
+
+ * Copyright (c) 2021, RTE (http://www.rte-france.com)*
+
  * Released under the Apache 2.0 Licence
  *
- * Author: Amandeep Singh Arora
+ * Author: Benoit Jeanson <benoit.jeanson at rte-france.com>
  */
 #include <plugin_api.h>
 #include <logger.h>

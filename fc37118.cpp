@@ -22,6 +22,7 @@ FC37118::FC37118() : m_conf(new FC37118Conf),
                      m_sockfd(0)
 {
     Logger::getLogger()->setMinLevel(DEBUG_LEVEL);
+    // m_terminate_future = m_terminate_promise.get_future();
 }
 
 FC37118::~FC37118()
@@ -39,13 +40,9 @@ void FC37118::start()
 
     Logger::getLogger()->info("C37118 start");
 
-    m_terminate_promise = std::promise<void>();
-    m_terminate_future = m_terminate_promise.get_future();
-
-    std::promise<void> configuration_ready_promise;
-    std::future<void> configuration_ready_future = configuration_ready_promise.get_future();
-    m_configuration_thread = new std::thread(&FC37118::m_init_Pmu_Dialog, this, &configuration_ready_promise);
-    m_receiving_thread = new std::thread(&FC37118::m_receiveAndPushDatapoints, this, &configuration_ready_future);
+    m_configuration_ready = false;
+    m_configuration_thread = new std::thread(&FC37118::m_init_Pmu_Dialog, this);
+    m_receiving_thread = new std::thread(&FC37118::m_receiveAndPushDatapoints, this);
     m_is_running = true;
 }
 
@@ -53,7 +50,7 @@ void FC37118::stop()
 {
     // m_send_cmd(C37118_CMD_TURNOFF_TX);
 
-    m_terminate_promise.set_value();
+    m_is_running = false;
     close(m_sockfd);
     if (m_configuration_thread != nullptr)
     {
@@ -66,16 +63,16 @@ void FC37118::stop()
         m_receiving_thread->join();
     }
     Logger::getLogger()->info("plugin stoped");
-    m_is_running = false;
 }
 
 bool FC37118::m_terminate()
 {
-    return m_terminate_future.wait_for(std::chrono::microseconds(1)) == std::future_status::ready;
+    return !m_is_running;
 }
 
 bool FC37118::set_conf(const std::string &conf)
 {
+    bool was_reunning = m_is_running;
     if (m_is_running)
     {
         Logger::getLogger()->info("Configuration change requested, stoping the plugin");
@@ -92,6 +89,11 @@ bool FC37118::set_conf(const std::string &conf)
     m_serv_addr.sin_family = AF_INET;
     m_serv_addr.sin_addr.s_addr = inet_addr(const_cast<char *>(m_conf->get_pmu_IP_addr().c_str()));
     m_serv_addr.sin_port = htons(m_conf->get_pmu_port());
+    if (was_reunning)
+    {
+        Logger::getLogger()->warn("_____________ attempt to restart");
+        start();
+    }
     return true;
 }
 
@@ -117,7 +119,8 @@ bool FC37118::m_connect()
     while (connect(m_sockfd, (struct sockaddr *)&m_serv_addr, sizeof(m_serv_addr)) != 0)
     {
         Logger::getLogger()->info("Connection attempt in %i seconds", m_conf->get_reconnection_delay());
-        if (m_terminate_future.wait_for(std::chrono::seconds(m_conf->get_reconnection_delay())) == std::future_status::ready)
+        sleep(m_conf->get_reconnection_delay());
+        if (!m_is_running)
         {
             Logger::getLogger()->debug("terminate signal received during connection. Abort");
             return false;
@@ -160,7 +163,7 @@ bool FC37118::m_send_cmd(int cmd)
  *
  * @param configuration_ready_promise the promise to send configuration_ready signal
  */
-void FC37118::m_init_Pmu_Dialog(std::promise<void> *configuration_ready_promise)
+void FC37118::m_init_Pmu_Dialog()
 {
     unsigned char *buffer_tx, buffer_rx[BUFFER_SIZE];
 
@@ -197,7 +200,7 @@ void FC37118::m_init_Pmu_Dialog(std::promise<void> *configuration_ready_promise)
         {
             m_config->unpack(buffer_rx);
             m_pmu_station = m_config->PMUSTATION_GETbyIDCODE(m_conf->get_pmu_IDCODE());
-            configuration_ready_promise->set_value(); // the configuration is properly set, configuration_ready signal is sent
+            m_configuration_ready = true;
             Logger::getLogger()->info("c37.118 configuration retrieved");
         }
         else
@@ -235,22 +238,24 @@ void FC37118::ingest(Reading &reading)
  *
  * @param configuration_ready_future the future to receice configuration_ready signal
  */
-void FC37118::m_receiveAndPushDatapoints(std::future<void> *configuration_ready_future)
+void FC37118::m_receiveAndPushDatapoints()
 {
     unsigned char buffer_rx[BUFFER_SIZE];
     int size;
     int k;
 
-    while (configuration_ready_future->wait_for(chrono::seconds(1)) == std::future_status::timeout)
+    while (!m_configuration_ready)
     {
+        Logger::getLogger()->debug("waiting for configuration");
+        sleep(1);
         if (m_terminate())
         {
             Logger::getLogger()->debug("terminate signal received: stop waiting for configuration");
             return;
         }
-        Logger::getLogger()->debug("waiting for configuration");
     }
-    Logger::getLogger()->debug("receiving real time data, waiting conf availability");
+
+    Logger::getLogger()->debug("conf received, receiving real time data");
     m_send_cmd(C37118_CMD_TURNON_TX);
 
     do

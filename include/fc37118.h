@@ -63,8 +63,7 @@ private:
 
     // when m_exit_promise is set when shutdown is requested and trigger stop to the threads through m_exit_future
     bool m_is_running;
-    std::promise<void> m_terminate_promise;
-    std::future<void> m_terminate_future;
+    bool m_configuration_ready;
     bool m_terminate();
 
     std::thread *m_configuration_thread;
@@ -76,7 +75,7 @@ private:
     int m_sockfd;
     struct sockaddr_in m_serv_addr;
     bool m_connect();
-    void m_init_Pmu_Dialog(std::promise<void> *configuration_promise);
+    void m_init_Pmu_Dialog();
 
     // C37.118
     CMD_Frame *m_cmd;
@@ -92,6 +91,6 @@ private:
     INGEST_CB m_ingest; // Callback function used to send data to south service
     void *m_data;       // Ingest function data
 
-    void m_receiveAndPushDatapoints(std::future<void> *configuration_future);
+    void m_receiveAndPushDatapoints();
 };
 #endif

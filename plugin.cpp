@@ -157,7 +157,6 @@ extern "C"
 
                 if (conf.itemExists(PMU_CONF_LABEL)){
                         fc37118->set_conf(conf.getValue(PMU_CONF_LABEL));
-                        fc37118->start();
                 }
         }
 

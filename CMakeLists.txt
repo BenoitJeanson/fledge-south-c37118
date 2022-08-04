@@ -31,8 +31,8 @@ set(PLUGIN_TYPE "south")
 set(NEEDED_FLEDGE_LIBS common-lib)
 
 # Find source files
-# file(GLOB SOURCES *.cpp)
-set(SOURCES plugin.cpp fc37118.cpp)
+file(GLOB SOURCES *.cpp)
+#set(SOURCES plugin.cpp fc37118.cpp)
 
 # Find Fledge includes and libs, by including FindFledge.cmak file
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR})
@@ -57,6 +57,11 @@ include_directories(/usr/local/include/openc37118-1.0)
 
 # Add Fledge lib path 
 link_directories(${FLEDGE_LIB_DIRS})
+
+if (FLEDGE_SRC)
+	message(STATUS "Using third-party includes " ${FLEDGE_SRC}/C/thirdparty)
+	include_directories(${FLEDGE_SRC}/C/thirdparty/rapidjson/include)
+endif()
 
 # Create shared library
 add_library(${PROJECT_NAME} SHARED ${SOURCES} version.h)

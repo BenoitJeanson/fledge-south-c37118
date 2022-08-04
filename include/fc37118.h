@@ -1,7 +1,7 @@
 /*
  * Fledge south plugin.
 
- * Copyright (c) 2021, RTE (http://www.rte-france.com)*
+ * Copyright (c) 2022, RTE (http://www.rte-france.com)*
 
  * Released under the Apache 2.0 Licence
  *
@@ -17,6 +17,7 @@
 #include <thread>
 #include <chrono>
 #include <future>
+#include <string>
 
 #include "reading.h"
 #include "logger.h"
@@ -26,6 +27,8 @@
 #include "c37118data.h"
 #include "c37118header.h"
 #include "c37118command.h"
+
+#include "fc37118conf.h"
 
 #define BUFFER_SIZE 80000
 
@@ -42,16 +45,24 @@ class FC37118
 
 public:
     FC37118(const char *inet_add, int portno);
+    FC37118();
     ~FC37118();
 
     void set_asset_name(const std::string &asset) { m_asset = asset; }
+    bool set_conf(const std::string &conf);
     std::string get_asset_name() { return m_asset; }
     void start();
+    void stop();
     void register_ingest(void *data, INGEST_CB cb);
     void ingest(Reading &reading);
+    
 
 private:
+    // configuration
+    FC37118Conf *m_conf;
+
     // when m_exit_promise is set when shutdown is requested and trigger stop to the threads through m_exit_future
+    bool m_is_running;
     std::promise<void> m_terminate_promise;
     std::future<void> m_terminate_future;
     bool m_terminate();

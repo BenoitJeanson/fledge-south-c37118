@@ -1,7 +1,7 @@
 /*
  * Fledge south plugin.
 
- * Copyright (c) 2021, RTE (http://www.rte-france.com)*
+ * Copyright (c) 2022, RTE (http://www.rte-france.com)*
 
  * Released under the Apache 2.0 Licence
  *
@@ -14,24 +14,22 @@
 #include <rapidjson/document.h>
 #include <version.h>
 #include "fc37118.h"
+#include "fc37118conf.h"
 #include "reading.h"
 #include "logger.h"
 
 using namespace std;
 #define PLUGIN_NAME "c37118"
 
-#define INET_ADDR "127.0.0.1"
-#define TCP_PORT 1410
-
-
 // PLUGIN DEFAULT TLS CONF
-#define CONNECTION_DEF QUOTE({\
-      "IP_ADDR": "127.0.0.1",\
-      "PMU_PORT": 1410,\
-      "IDCODE":1\
+#define PMU_CONF_LABEL "PMU"
+#define PMU_CONF QUOTE({       \
+        IP_ADDR : "127.0.0.1", \
+        IP_PORT : 1410,        \
+        PMU_IDCODE : 1,        \
+        MY_IDCODE : 7,         \
+        RECONNECTION_DELAY : 1 \
 })
-
-
 
 /**
  * Default configuration
@@ -52,15 +50,16 @@ const static char *default_config = QUOTE({
                 "order" : "1",
                 "displayName" : "C37.118",
                 "mandatory" : "true"
+        },
+
+        PMU_CONF_LABEL : {
+                "description" : "PMU configuration",
+                "type" : "JSON",
+                "default" : PMU_CONF,
+                "order" : "2",
+                "displayName" : PMU_CONF_LABEL,
+                "mandatory" : "true"
         }
-        // "PMU" : {
-        //         "description" : "PMU configuration",
-        //         "type" : "JSON",
-        //         "default" : CONNECTION_DEF,
-        //         "order" : "2",
-        //         "displayName" : "C37.118",
-        //         "mandatory" : "true"
-        // }
 });
 
 /**
@@ -94,7 +93,12 @@ extern "C"
          */
         PLUGIN_HANDLE plugin_init(ConfigCategory *config)
         {
-                FC37118 *fc37118 = new FC37118(INET_ADDR, TCP_PORT);
+                if (!config->itemExists(PMU_CONF_LABEL))
+                        return nullptr;
+                FC37118 *fc37118 = new FC37118();
+                if (!fc37118->set_conf(config->getValue(PMU_CONF_LABEL)))
+                        return nullptr;
+
                 if (config->itemExists("asset"))
                 {
                         fc37118->set_asset_name(config->getValue("asset"));
@@ -150,6 +154,11 @@ extern "C"
                 auto *fc37118 = (FC37118 *)*handle;
                 if (conf.itemExists("asset"))
                         fc37118->set_asset_name(conf.getValue("asset"));
+
+                if (conf.itemExists(PMU_CONF_LABEL)){
+                        fc37118->set_conf(conf.getValue(PMU_CONF_LABEL));
+                        fc37118->start();
+                }
         }
 
         /**

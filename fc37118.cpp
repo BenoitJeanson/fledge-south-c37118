@@ -1,29 +1,36 @@
+/*
+ * Fledge south plugin.
+
+ * Copyright (c) 2022, RTE (http://www.rte-france.com)*
+
+ * Released under the Apache 2.0 Licence
+ *
+ * Author: Benoit Jeanson <benoit.jeanson at rte-france.com>
+ */
+
 #include "fc37118.h"
 
 #define DEBUG_LEVEL "debug"
-#define TIMEOUT 3
-#define MY_IDCODE 7
-#define PMU_STATION_IDCODE 1410
 
-FC37118::FC37118(const char *inet_add, int portno) : m_cmd(new CMD_Frame()),
-                                                     m_config(new CONFIG_Frame()),
-                                                     m_header(new HEADER_Frame("")),
-                                                     m_data_frame(new DATA_Frame(m_config)),
-                                                     m_pmu_station(nullptr),
-                                                     m_inet_add(inet_add),
-                                                     m_portno(portno),
-                                                     m_sockfd(0),
-                                                     m_receiving_thread(nullptr),
-                                                     m_terminate_future(m_terminate_promise.get_future())
+FC37118::FC37118() : m_conf(new FC37118Conf),
+                     m_cmd(new CMD_Frame()),
+                     m_config(new CONFIG_Frame()),
+                     m_header(new HEADER_Frame("")),
+                     m_data_frame(new DATA_Frame(m_config)),
+                     m_pmu_station(nullptr),
+                     m_is_running(false),
+                     m_sockfd(0)
 {
-    m_serv_addr.sin_family = AF_INET;
-    m_serv_addr.sin_addr.s_addr = inet_addr(m_inet_add);
-    m_serv_addr.sin_port = htons(m_portno);
+    Logger::getLogger()->setMinLevel(DEBUG_LEVEL);
 }
 
-bool FC37118::m_terminate()
+FC37118::~FC37118()
 {
-    return m_terminate_future.wait_for(std::chrono::microseconds(1)) == std::future_status::ready;
+    Logger::getLogger()->info("shutting down ********************************************");
+    if (m_is_running)
+    {
+        stop();
+    }
 }
 
 void FC37118::start()
@@ -32,10 +39,60 @@ void FC37118::start()
 
     Logger::getLogger()->info("C37118 start");
 
+    m_terminate_promise = std::promise<void>();
+    m_terminate_future = m_terminate_promise.get_future();
+
     std::promise<void> configuration_ready_promise;
     std::future<void> configuration_ready_future = configuration_ready_promise.get_future();
     m_configuration_thread = new std::thread(&FC37118::m_init_Pmu_Dialog, this, &configuration_ready_promise);
     m_receiving_thread = new std::thread(&FC37118::m_receiveAndPushDatapoints, this, &configuration_ready_future);
+    m_is_running = true;
+}
+
+void FC37118::stop()
+{
+    // m_send_cmd(C37118_CMD_TURNOFF_TX);
+
+    m_terminate_promise.set_value();
+    close(m_sockfd);
+    if (m_configuration_thread != nullptr)
+    {
+        Logger::getLogger()->info("waiting conf thread");
+        m_configuration_thread->join();
+    }
+    if (m_receiving_thread != nullptr)
+    {
+        Logger::getLogger()->info("waiting read thread");
+        m_receiving_thread->join();
+    }
+    Logger::getLogger()->info("plugin stoped");
+    m_is_running = false;
+}
+
+bool FC37118::m_terminate()
+{
+    return m_terminate_future.wait_for(std::chrono::microseconds(1)) == std::future_status::ready;
+}
+
+bool FC37118::set_conf(const std::string &conf)
+{
+    if (m_is_running)
+    {
+        Logger::getLogger()->info("Configuration change requested, stoping the plugin");
+        stop();
+    }
+    m_conf->import_json(conf);
+    if (!m_conf->is_complete())
+    {
+        Logger::getLogger()->warn("Unable to set Plugin configuration");
+        return false;
+    }
+    Logger::getLogger()->info("Plugin configuration successfully set");
+
+    m_serv_addr.sin_family = AF_INET;
+    m_serv_addr.sin_addr.s_addr = inet_addr(const_cast<char *>(m_conf->get_pmu_IP_addr().c_str()));
+    m_serv_addr.sin_port = htons(m_conf->get_pmu_port());
+    return true;
 }
 
 /**
@@ -59,8 +116,8 @@ bool FC37118::m_connect()
 
     while (connect(m_sockfd, (struct sockaddr *)&m_serv_addr, sizeof(m_serv_addr)) != 0)
     {
-        Logger::getLogger()->info("Connection attempt in %i seconds", TIMEOUT);
-        if (m_terminate_future.wait_for(std::chrono::seconds(TIMEOUT)) == std::future_status::ready)
+        Logger::getLogger()->info("Connection attempt in %i seconds", m_conf->get_reconnection_delay());
+        if (m_terminate_future.wait_for(std::chrono::seconds(m_conf->get_reconnection_delay())) == std::future_status::ready)
         {
             Logger::getLogger()->debug("terminate signal received during connection. Abort");
             return false;
@@ -114,7 +171,7 @@ void FC37118::m_init_Pmu_Dialog(std::promise<void> *configuration_ready_promise)
         return;
     }
 
-    m_cmd->IDCODE_set(MY_IDCODE);
+    m_cmd->IDCODE_set(m_conf->get_my_IDCODE());
 
     // Request & receive Header Frame
     if (m_send_cmd(C37118_CMD_SEND_DATA))
@@ -139,7 +196,8 @@ void FC37118::m_init_Pmu_Dialog(std::promise<void> *configuration_ready_promise)
         if (size > 0)
         {
             m_config->unpack(buffer_rx);
-            m_pmu_station = m_config->PMUSTATION_GETbyIDCODE(PMU_STATION_IDCODE);
+            m_pmu_station = m_config->PMUSTATION_GETbyIDCODE(m_conf->get_pmu_IDCODE());
+            configuration_ready_promise->set_value(); // the configuration is properly set, configuration_ready signal is sent
             Logger::getLogger()->info("c37.118 configuration retrieved");
         }
         else
@@ -148,8 +206,6 @@ void FC37118::m_init_Pmu_Dialog(std::promise<void> *configuration_ready_promise)
             return;
         }
     }
-
-    configuration_ready_promise->set_value(); // the configuration is properly set, configuration_ready signal is sent
 }
 
 /**
@@ -256,20 +312,4 @@ Reading FC37118::m_dataframe_to_reading()
 
     Reading reading(m_pmu_station->STN_get(), {datapoint_phasors, datapoint_analogs, datapoint_frequency});
     return reading;
-}
-
-FC37118::~FC37118()
-{
-    Logger::getLogger()->info("shutting down ********************************************");
-    m_send_cmd(C37118_CMD_TURNOFF_TX);
-    m_terminate_promise.set_value();
-    close(m_sockfd);
-    if (m_receiving_thread != nullptr)
-    {
-        m_receiving_thread->join();
-    }
-    if (m_configuration_thread != nullptr)
-    {
-        m_configuration_thread->join();
-    }
 }

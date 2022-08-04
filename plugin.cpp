@@ -23,6 +23,16 @@ using namespace std;
 #define INET_ADDR "127.0.0.1"
 #define TCP_PORT 1410
 
+
+// PLUGIN DEFAULT TLS CONF
+#define CONNECTION_DEF QUOTE({\
+      "IP_ADDR": "127.0.0.1",\
+      "PMU_PORT": 1410,\
+      "IDCODE":1\
+})
+
+
+
 /**
  * Default configuration
  */
@@ -34,14 +44,23 @@ const static char *default_config = QUOTE({
                 "default" : PLUGIN_NAME,
                 "readonly" : "true"
         },
+
         "asset" : {
                 "description" : "Asset name",
                 "type" : "string",
-                "default" : "default C37.118",
+                "default" : "C37.118",
                 "order" : "1",
                 "displayName" : "C37.118",
                 "mandatory" : "true"
         }
+        // "PMU" : {
+        //         "description" : "PMU configuration",
+        //         "type" : "JSON",
+        //         "default" : CONNECTION_DEF,
+        //         "order" : "2",
+        //         "displayName" : "C37.118",
+        //         "mandatory" : "true"
+        // }
 });
 
 /**

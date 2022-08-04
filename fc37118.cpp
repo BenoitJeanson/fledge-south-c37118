@@ -142,8 +142,11 @@ void FC37118::m_init_Pmu_Dialog(std::promise<void> *configuration_ready_promise)
             m_pmu_station = m_config->PMUSTATION_GETbyIDCODE(PMU_STATION_IDCODE);
             Logger::getLogger()->info("c37.118 configuration retrieved");
         }
-        Logger::getLogger()->info("could not retrieve c37.118 configuration");
-        return;
+        else
+        {
+            Logger::getLogger()->info("could not retrieve c37.118 configuration");
+            return;
+        }
     }
 
     configuration_ready_promise->set_value(); // the configuration is properly set, configuration_ready signal is sent

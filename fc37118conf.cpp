@@ -10,7 +10,8 @@
 
 #include "fc37118conf.h"
 
-FC37118Conf::FC37118Conf() : m_is_complete(false)
+FC37118Conf::FC37118Conf() : m_is_complete(false),
+                             m_request_config_to_pmu(false)
 {
 }
 
@@ -23,7 +24,17 @@ FC37118Conf::~FC37118Conf()
 {
 }
 
-bool FC37118Conf::m_retrieve_uint(rapidjson::Document *doc, const char * key, uint* target)
+bool FC37118Conf::m_retrieve(rapidjson::Document *doc, const char *key, bool *target)
+{
+    if (!doc->HasMember(key) || !(*doc)[key].IsBool())
+    {
+        return false;
+    }
+    *target = (*doc)[key].GetBool();
+    return true;
+}
+
+bool FC37118Conf::m_retrieve(rapidjson::Document *doc, const char *key, uint *target)
 {
     if (!doc->HasMember(key) || !(*doc)[key].IsUint())
     {
@@ -33,7 +44,17 @@ bool FC37118Conf::m_retrieve_uint(rapidjson::Document *doc, const char * key, ui
     return true;
 }
 
-bool FC37118Conf::m_retrieve_string(rapidjson::Document *doc, const char * key, std::string* target)
+bool FC37118Conf::m_retrieve(rapidjson::Document *doc, const char *key, int *target)
+{
+    if (!doc->HasMember(key) || !(*doc)[key].IsInt())
+    {
+        return false;
+    }
+    *target = (*doc)[key].GetInt();
+    return true;
+}
+
+bool FC37118Conf::m_retrieve(rapidjson::Document *doc, const char *key, std::string *target)
 {
     if (!doc->HasMember(key) || !(*doc)[key].IsString())
     {
@@ -42,8 +63,6 @@ bool FC37118Conf::m_retrieve_string(rapidjson::Document *doc, const char * key, 
     *target = (*doc)[key].GetString();
     return true;
 }
-
-
 
 void FC37118Conf::import_json(const std::string &json_config)
 {
@@ -56,12 +75,24 @@ void FC37118Conf::import_json(const std::string &json_config)
     if (!doc->IsObject())
         return;
 
-    is_complete &= m_retrieve_string(doc, IP_ADDR, &m_pmu_IP_addr);
-    is_complete &= m_retrieve_uint(doc, IP_PORT, &m_pmu_IP_port);
-    is_complete &= m_retrieve_uint(doc, MY_IDCODE, &m_my_IDCODE);
-    is_complete &= m_retrieve_uint(doc, RECONNECTION_DELAY, &m_reconnection_delay);
+    is_complete &= m_retrieve(doc, IP_ADDR, &m_pmu_IP_addr);
+    is_complete &= m_retrieve(doc, IP_PORT, &m_pmu_IP_port);
+    is_complete &= m_retrieve(doc, RECONNECTION_DELAY, &m_reconnection_delay);
+    is_complete &= m_retrieve(doc, MY_IDCODE, &m_my_IDCODE);
 
-    is_complete &= m_retrieve_uint(doc, PMU_IDCODE, &m_pmu_IDCODE);
+    is_complete &= m_retrieve(doc, PMU_IDCODE, &m_pmu_IDCODE);
+    is_complete &= m_retrieve(doc, REQUEST_CONFIG_TO_PMU, &m_request_config_to_pmu);
+    if (m_request_config_to_pmu)
+    {
+        is_complete &= m_retrieve(doc, TIME_BASE, &m_time_base);
+        is_complete &= m_retrieve(doc, NUM_PMU, &m_num_pmu);
+        is_complete &= m_retrieve(doc, CFGCNT, &m_cfgcnt);
+        is_complete &= m_retrieve(doc, DATA_RATE, &m_data_rate);
+        
+        for (int st = 0; st < m_num_pmu; ++st)
+        {
 
-    m_is_complete = true;
+        }
+    }
+    m_is_complete = is_complete;
 }

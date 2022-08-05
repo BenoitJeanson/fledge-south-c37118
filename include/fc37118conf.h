@@ -57,16 +57,24 @@ public:
     uint get_reconnection_delay() { return m_reconnection_delay; }
 
 private:
+    bool m_is_complete;
+
     std::string m_pmu_IP_addr;
     uint m_pmu_IP_port;
+    uint m_reconnection_delay;
     uint m_my_IDCODE;
     uint m_pmu_IDCODE;
-    bool m_is_complete;
-    uint m_reconnection_delay;
+    bool m_request_config_to_pmu;
+    uint m_time_base;
+    uint m_num_pmu;
+    uint m_cfgcnt;
+    int m_data_rate;
 
     // bool m_retrieve_uint(rapidjson::Document doc, const char * key, int* target);
-    bool m_retrieve_uint(rapidjson::Document *doc, const char * key, uint* target);
-    bool m_retrieve_string(rapidjson::Document *doc, const char * key, std::string* target);
+    bool m_retrieve(rapidjson::Document *doc, const char * key, bool* target);
+    bool m_retrieve(rapidjson::Document *doc, const char * key, uint* target);
+    bool m_retrieve(rapidjson::Document *doc, const char *key, int *target);
+    bool m_retrieve(rapidjson::Document *doc, const char * key, std::string* target);
 };
 
 #endif

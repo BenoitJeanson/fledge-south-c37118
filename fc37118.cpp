@@ -39,15 +39,12 @@ void FC37118::start()
     Logger::getLogger()->setMinLevel(DEBUG_LEVEL);
 
     Logger::getLogger()->info("C37118 start");
-    m_c37118_configuration_ready = false;
     m_receiving_thread = new std::thread(&FC37118::m_receiveAndPushDatapoints, this);
     m_is_running = true;
 }
 
 void FC37118::stop()
 {
-    // m_send_cmd(C37118_CMD_TURNOFF_TX);
-
     m_is_running = false;
     close(m_sockfd);
     if (m_receiving_thread != nullptr)
@@ -78,6 +75,16 @@ bool FC37118::set_conf(const std::string &conf)
         return false;
     }
     Logger::getLogger()->info("Plugin configuration successfully set");
+
+    if (m_conf->is_request_config_to_pmu())
+    {
+        m_c37118_configuration_ready = false;
+    }
+    else
+    {
+        m_conf->to_conf_frame(m_config_frame);
+        m_c37118_configuration_ready = true;
+    }
 
     m_serv_addr.sin_family = AF_INET;
     m_serv_addr.sin_addr.s_addr = inet_addr(const_cast<char *>(m_conf->get_pmu_IP_addr().c_str()));

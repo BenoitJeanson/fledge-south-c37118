@@ -23,12 +23,12 @@ using namespace std;
 
 // PLUGIN DEFAULT TLS CONF
 #define PMU_CONF_LABEL "PMU"
-#define PMU_CONF QUOTE({       \
-        IP_ADDR : "127.0.0.1", \
-        IP_PORT : 1410,        \
-        PMU_IDCODE : 1,        \
-        MY_IDCODE : 7,         \
-        RECONNECTION_DELAY : 1 \
+#define PMU_CONF QUOTE({        \
+        IP_ADDR : "127.0.0.1",  \
+        IP_PORT : 1410,         \
+        RECONNECTION_DELAY : 1, \
+        PMU_IDCODE : 1,         \
+        MY_IDCODE : 7           \
 })
 
 /**
@@ -155,7 +155,8 @@ extern "C"
                 if (conf.itemExists("asset"))
                         fc37118->set_asset_name(conf.getValue("asset"));
 
-                if (conf.itemExists(PMU_CONF_LABEL)){
+                if (conf.itemExists(PMU_CONF_LABEL))
+                {
                         fc37118->set_conf(conf.getValue(PMU_CONF_LABEL));
                 }
         }

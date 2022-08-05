@@ -14,9 +14,9 @@
 
 FC37118::FC37118() : m_conf(new FC37118Conf),
                      m_cmd(new CMD_Frame()),
-                     m_config(new CONFIG_Frame()),
+                     m_config_frame(new CONFIG_Frame()),
                      m_header(new HEADER_Frame("")),
-                     m_data_frame(new DATA_Frame(m_config)),
+                     m_data_frame(new DATA_Frame(m_config_frame)),
                      m_pmu_station(nullptr),
                      m_is_running(false),
                      m_sockfd(0)
@@ -39,9 +39,7 @@ void FC37118::start()
     Logger::getLogger()->setMinLevel(DEBUG_LEVEL);
 
     Logger::getLogger()->info("C37118 start");
-
-    m_configuration_ready = false;
-    m_configuration_thread = new std::thread(&FC37118::m_init_Pmu_Dialog, this);
+    m_c37118_configuration_ready = false;
     m_receiving_thread = new std::thread(&FC37118::m_receiveAndPushDatapoints, this);
     m_is_running = true;
 }
@@ -52,11 +50,6 @@ void FC37118::stop()
 
     m_is_running = false;
     close(m_sockfd);
-    if (m_configuration_thread != nullptr)
-    {
-        Logger::getLogger()->info("waiting conf thread");
-        m_configuration_thread->join();
-    }
     if (m_receiving_thread != nullptr)
     {
         Logger::getLogger()->info("waiting read thread");
@@ -72,7 +65,7 @@ bool FC37118::m_terminate()
 
 bool FC37118::set_conf(const std::string &conf)
 {
-    bool was_reunning = m_is_running;
+    bool was_running = m_is_running;
     if (m_is_running)
     {
         Logger::getLogger()->info("Configuration change requested, stoping the plugin");
@@ -89,7 +82,7 @@ bool FC37118::set_conf(const std::string &conf)
     m_serv_addr.sin_family = AF_INET;
     m_serv_addr.sin_addr.s_addr = inet_addr(const_cast<char *>(m_conf->get_pmu_IP_addr().c_str()));
     m_serv_addr.sin_port = htons(m_conf->get_pmu_port());
-    if (was_reunning)
+    if (was_running)
     {
         Logger::getLogger()->warn("_____________ attempt to restart");
         start();
@@ -160,8 +153,6 @@ bool FC37118::m_send_cmd(int cmd)
 /**
  * @brief Initiate the dialog with the PMU, log the header and retrieve the C37.118 configuration.
  * Once the configuration is retrieved, set configuration_ready_promise signal
- *
- * @param configuration_ready_promise the promise to send configuration_ready signal
  */
 void FC37118::m_init_Pmu_Dialog()
 {
@@ -198,9 +189,9 @@ void FC37118::m_init_Pmu_Dialog()
         int size = read(m_sockfd, buffer_rx, BUFFER_SIZE);
         if (size > 0)
         {
-            m_config->unpack(buffer_rx);
-            m_pmu_station = m_config->PMUSTATION_GETbyIDCODE(m_conf->get_pmu_IDCODE());
-            m_configuration_ready = true;
+            m_config_frame->unpack(buffer_rx);
+            m_pmu_station = m_config_frame->PMUSTATION_GETbyIDCODE(m_conf->get_pmu_IDCODE());
+            m_c37118_configuration_ready = true;
             Logger::getLogger()->info("c37.118 configuration retrieved");
         }
         else
@@ -212,31 +203,7 @@ void FC37118::m_init_Pmu_Dialog()
 }
 
 /**
- * Save the callback function and its data
- * @param data   The Ingest function data
- * @param cb     The callback function to call
- */
-void FC37118::register_ingest(void *data, INGEST_CB cb)
-{
-    m_ingest = cb;
-    m_data = data;
-}
-
-/**
- * Called when a data changed event is received. This calls back to the south service
- * and adds the points to the readings queue to send.
- *
- * @param points    The points in the reading we must create
- */
-void FC37118::ingest(Reading &reading)
-{
-    (*m_ingest)(m_data, reading);
-}
-
-/**
- * @brief Receive the real time data from the c37.118 equipment. Wait for the configuration to be ready before requesting data.
- *
- * @param configuration_ready_future the future to receice configuration_ready signal
+ * @brief Receive the real time data from the c37.118 equipment. Leaves once  Wait for the configuration to be ready before requesting data.
  */
 void FC37118::m_receiveAndPushDatapoints()
 {
@@ -244,15 +211,14 @@ void FC37118::m_receiveAndPushDatapoints()
     int size;
     int k;
 
-    while (!m_configuration_ready)
+    if (!m_c37118_configuration_ready)
     {
-        Logger::getLogger()->debug("waiting for configuration");
-        sleep(1);
-        if (m_terminate())
-        {
-            Logger::getLogger()->debug("terminate signal received: stop waiting for configuration");
-            return;
-        }
+        m_init_Pmu_Dialog();
+    }
+
+    if (!m_c37118_configuration_ready || m_terminate())
+    {
+        return;
     }
 
     Logger::getLogger()->debug("conf received, receiving real time data");
@@ -283,8 +249,36 @@ void FC37118::m_receiveAndPushDatapoints()
     Logger::getLogger()->debug("terminate signal received: stop receiving");
 }
 
+/**
+ * Save the callback function and its data
+ * @param data   The Ingest function data
+ * @param cb     The callback function to call
+ */
+void FC37118::register_ingest(void *data, INGEST_CB cb)
+{
+    m_ingest = cb;
+    m_data = data;
+}
+
+/**
+ * Called when a data changed event is received. This calls back to the south service
+ * and adds the points to the readings queue to send.
+ *
+ * @param points    The points in the reading we must create
+ */
+void FC37118::ingest(Reading &reading)
+{
+    (*m_ingest)(m_data, reading);
+}
+
 Reading FC37118::m_dataframe_to_reading()
 {
+    auto time_datapoints = new vector<Datapoint *>;
+    time_datapoints->push_back(new Datapoint("SOC", *new DatapointValue((long)(m_data_frame->SOC_get()))));
+    time_datapoints->push_back(new Datapoint("FRACSEC", *new DatapointValue((long)(m_data_frame->FRACSEC_get()))));
+    time_datapoints->push_back(new Datapoint("TIME_BASE", *new DatapointValue((long)(m_config_frame->TIME_BASE_get()))));
+    auto datapoint_time = new Datapoint("Time", *new DatapointValue(time_datapoints, true));
+
     auto ph_datapoints = new vector<Datapoint *>;
     for (int k = 0; k < m_pmu_station->PHNMR_get(); k++)
     {
@@ -308,13 +302,11 @@ Reading FC37118::m_dataframe_to_reading()
 
     auto datapoint_FREQ = new Datapoint("FREQ", *new DatapointValue(m_pmu_station->FREQ_get()));
     auto datapoint_DFREQ = new Datapoint("DFREQ", *new DatapointValue(m_pmu_station->DFREQ_get()));
-
     auto freq_datapoints = new vector<Datapoint *>;
     freq_datapoints->push_back(datapoint_FREQ);
     freq_datapoints->push_back(datapoint_DFREQ);
-
     auto datapoint_frequency = new Datapoint("Frequency", *new DatapointValue(freq_datapoints, true));
 
-    Reading reading(m_pmu_station->STN_get(), {datapoint_phasors, datapoint_analogs, datapoint_frequency});
+    Reading reading(m_pmu_station->STN_get(), {datapoint_time, datapoint_phasors, datapoint_analogs, datapoint_frequency});
     return reading;
 }

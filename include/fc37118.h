@@ -63,10 +63,9 @@ private:
 
     // when m_exit_promise is set when shutdown is requested and trigger stop to the threads through m_exit_future
     bool m_is_running;
-    bool m_configuration_ready;
+    bool m_c37118_configuration_ready;
     bool m_terminate();
 
-    std::thread *m_configuration_thread;
     std::thread *m_receiving_thread;
 
     // Connection to PMU
@@ -79,7 +78,7 @@ private:
 
     // C37.118
     CMD_Frame *m_cmd;
-    CONFIG_Frame *m_config;
+    CONFIG_Frame *m_config_frame;
     HEADER_Frame *m_header;
     DATA_Frame *m_data_frame;
     PMU_Station *m_pmu_station;

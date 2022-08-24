@@ -19,14 +19,24 @@ in your local fledge-south-c37118 directory :
 * `make`
 * `sudo cp mobc37118.so /usr/local/fledge/plugins/south/c37118`
 
-The plugin is configurable. As C37.118 enables to retrieve the configuration of the sending PMU, that's how it works now with the configuration attribute `REQUEST_CONFIG_TO_PMU : true`.
+## Configuration
+The plugin is configurable.
+
+C37.118 enables to retrieve the configuration of the sender, that's the easiest and most obvious way of doing it by setting the attribute `REQUEST_CONFIG_TO_SENDER : true`. If you prefere a hard configuration you can set it to `false` and configure the fields under `SENDER_HARD_CONFIG` - which are ignored otherwise. Please not that in the case of hard configuration, if the configuration does not fit to the one of the sender, the plugin will crash.
+
+`SPLIT_STATIONS`: From one stream source, C37.118 allow to have multiple data sources. You can decide wether 
+
+* `true` the plugin desagregate the sources into individual readings
+* `false` the plugin keeps the multiple sources into one reading. 
+
 
 ## Testing
 
 The plugin was tested using `randomPMU.py` example of [pypmu](https://github.com/iicsys/pypmu).
 
 ## TODO
-* Actually only one PMU_station is retreived from one PMU. This would be easy to extend to multi station broadcasting.
+* Implement hard configuration for multiple sources
+* Filter should be implemented in this plugin based on source IDCODE to choose
 * Filter to FledgePower pivot format is to be developed. Especially an analysis is ongoing to ensure the timestamp definition is compliant with IEC-61850.
 * Implement UDP, and TLS
 * One bug is identified in the Open-c37.118 library in `PMU_Station *CONFIG_Frame::PMUSTATION_GETbyIDCODE(unsigned short idcode)` which will always get a PMU_station even if the given ID_CODE is not affected to any PMU_station.

@@ -21,22 +21,21 @@
 using namespace std;
 #define PLUGIN_NAME "c37118"
 
-#define PMU_IDCODE "PMU_IDCODE"
-
-// PLUGIN DEFAULT TLS CONF
 #define PMU_CONF_LABEL "PMU"
+
 #define PMU_CONF QUOTE({                            \
     IP_ADDR : "127.0.0.1",                          \
     IP_PORT : 1410,                                 \
     RECONNECTION_DELAY : 1,                         \
     MY_IDCODE : 7,                                  \
-    PMU_IDCODE : 1,                                 \
-    REQUEST_CONFIG_TO_PMU : false,                  \
-    PMU_HARD_CONFIG : {                             \
+    STREAMSOURCE_IDCODE : 1,                        \
+    SPLIT_STATIONS : false,                          \
+    REQUEST_CONFIG_TO_SENDER : true,                \
+    SENDER_HARD_CONFIG : {                          \
         TIME_BASE : 1000000,                        \
         STATIONS : [ {                              \
             STN : "Random Station",                 \
-            STN_IDCODE : 1410,                      \
+            STN_IDCODE : 5,                         \
             STN_FORMAT : 15,                        \
             STN_PHNAM : [ "VA", "VB", "VC" ],       \
             STN_ANNAM : ["analog1"],                \

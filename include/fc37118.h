@@ -38,6 +38,31 @@
 #define C37118_CMD_SEND_CONFIGURATION_1 0x04
 #define C37118_CMD_SEND_CONFIGURATION_2 0x05
 
+#define READING_PREFIX "c37118-IDCODE "
+
+#define DP_TIMESTAMP "TimeStamp"
+#define DP_SOC "SOC"
+#define DP_FRACSEC "FRACSEC"
+#define DP_TIME_BASE "TIME_BASE"
+
+#define DP_PMUSTATIONS "PMUStations"
+
+#define DP_ID "id"
+#define DP_IDCODE "IDCODE"
+#define DP_STN "STN"
+
+#define DP_FREQUENCY "Frequency"
+#define DP_FREQ "FREQ"
+#define DP_DFREQ "DFREQ"
+
+#define DP_PHASORS "phasors"
+#define DP_MAGNITUDE "mag"
+#define DP_ANGLE "angle"
+
+#define DP_ANALOGS "analogs"
+
+
+
 typedef void (*INGEST_CB)(void *, Reading);
 
 class FC37118
@@ -77,12 +102,11 @@ private:
     CONFIG_Frame *m_config_frame;
     HEADER_Frame *m_header;
     DATA_Frame *m_data_frame;
-    PMU_Station *m_pmu_station;
     bool m_send_cmd(int cmd);
     void m_init_Pmu_Dialog();
 
     // Fledge
-    Reading m_dataframe_to_reading();
+    vector<Reading>* m_dataframe_to_reading();
     std::string m_asset;
     INGEST_CB m_ingest; // Callback function used to send data to south service
     void *m_data;       // Ingest function data

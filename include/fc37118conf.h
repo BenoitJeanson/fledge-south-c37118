@@ -22,10 +22,11 @@
 #define IP_PORT "IP_PORT"
 #define RECONNECTION_DELAY "RECONNECTION_DELAY"
 #define MY_IDCODE "MY_IDCODE"
-#define PMU_IDCODE "PMU_IDCODE"
+#define STREAMSOURCE_IDCODE "STREAMSOURCE_IDCODE"
+#define SPLIT_STATIONS "SPLIT_STATIONS"
 
-#define REQUEST_CONFIG_TO_PMU "REQUEST_CONFIG_TO_PMU"
-#define PMU_HARD_CONFIG "PMU_HARD_CONFIG"
+#define REQUEST_CONFIG_TO_SENDER "REQUEST_CONFIG_TO_SENDER"
+#define SENDER_HARD_CONFIG "SENDER_HARD_CONFIG"
 
 #define TIME_BASE "TIME_BASE"
 
@@ -80,27 +81,29 @@ public:
 
     void import_json(const std::string &json_config);
     bool is_complete() { return m_is_complete; }
-    
+    bool is_split_stations() { return m_is_split_stations; }
+
     std::string get_pmu_IP_addr() { return m_pmu_IP_addr; }
     uint get_pmu_port() { return m_pmu_IP_port; }
     uint get_pmu_IDCODE() { return m_pmu_IDCODE; }
     uint get_my_IDCODE() { return m_my_IDCODE; }
     uint get_reconnection_delay() { return m_reconnection_delay; }
-    
+
     /**
      * @brief if true, the plugin will request the configuration to the PMU
      * if false, the plugin will use the configuration set in PMU_HARD_CONFIG
      * Warning, the configuration shall be exactly the same as the one of the PMU
-     * 
-     * @return true 
-     * @return false 
+     *
+     * @return true
+     * @return false
      */
     bool is_request_config_to_pmu() { return m_request_config_to_pmu; }
-    
+
     void to_conf_frame(CONFIG_Frame *conf_frame);
 
 private:
     bool m_is_complete;
+    bool m_is_split_stations;
 
     // connection parameters
     std::string m_pmu_IP_addr;
@@ -115,7 +118,7 @@ private:
 
     uint m_time_base;
     int m_data_rate;
-    std::vector<FC37118StnConf*> m_stns;
+    std::vector<FC37118StnConf *> m_stns;
 };
 
 #endif

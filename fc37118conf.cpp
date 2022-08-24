@@ -81,25 +81,26 @@ void FC37118Conf::import_json(const std::string &json_config)
     is_complete &= retrieve(doc, RECONNECTION_DELAY, &m_reconnection_delay);
     is_complete &= retrieve(doc, MY_IDCODE, &m_my_IDCODE);
 
-    is_complete &= retrieve(doc, PMU_IDCODE, &m_pmu_IDCODE);
-    is_complete &= retrieve(doc, REQUEST_CONFIG_TO_PMU, &m_request_config_to_pmu);
+    is_complete &= retrieve(doc, STREAMSOURCE_IDCODE, &m_pmu_IDCODE);
+    is_complete &= retrieve(doc, SPLIT_STATIONS, &m_is_split_stations);
+    is_complete &= retrieve(doc, REQUEST_CONFIG_TO_SENDER, &m_request_config_to_pmu);
 
     if (!m_request_config_to_pmu)
     {
-        rapidjson::Value *pmuHardConf;
-        if (!retrieve(doc, PMU_HARD_CONFIG, pmuHardConf))
+        rapidjson::Value *pmu_hard_conf;
+        if (!retrieve(doc, SENDER_HARD_CONFIG, pmu_hard_conf))
             return;
-        if (!pmuHardConf->IsObject())
+        if (!pmu_hard_conf->IsObject())
             return;
 
-        is_complete &= retrieve(pmuHardConf, TIME_BASE, &m_time_base);
-        is_complete &= retrieve(pmuHardConf, DATA_RATE, &m_data_rate);
+        is_complete &= retrieve(pmu_hard_conf, TIME_BASE, &m_time_base);
+        is_complete &= retrieve(pmu_hard_conf, DATA_RATE, &m_data_rate);
 
-        if (!pmuHardConf->HasMember(STATIONS) || !(*pmuHardConf)[STATIONS].IsArray())
+        if (!pmu_hard_conf->HasMember(STATIONS) || !(*pmu_hard_conf)[STATIONS].IsArray())
             return;
         else
         {
-            for (auto &stn : (*pmuHardConf)[STATIONS].GetArray())
+            for (auto &stn : (*pmu_hard_conf)[STATIONS].GetArray())
             {
                 if (!stn.IsObject())
                     return;

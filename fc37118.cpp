@@ -17,7 +17,6 @@ FC37118::FC37118() : m_conf(new FC37118Conf),
                      m_config_frame(new CONFIG_Frame()),
                      m_header(new HEADER_Frame("")),
                      m_data_frame(new DATA_Frame(m_config_frame)),
-                     m_pmu_station(nullptr),
                      m_is_running(false),
                      m_sockfd(0)
 {
@@ -82,7 +81,6 @@ bool FC37118::set_conf(const std::string &conf)
     else
     {
         m_conf->to_conf_frame(m_config_frame);
-        m_pmu_station = m_config_frame->PMUSTATION_GETbyIDCODE(m_conf->get_pmu_IDCODE());
 
         m_c37118_configuration_ready = true;
 
@@ -200,7 +198,6 @@ void FC37118::m_init_Pmu_Dialog()
         if (size > 0)
         {
             m_config_frame->unpack(buffer_rx);
-            m_pmu_station = m_config_frame->PMUSTATION_GETbyIDCODE(m_conf->get_pmu_IDCODE());
             m_c37118_configuration_ready = true;
             Logger::getLogger()->info("c37.118 configuration retrieved");
         }
@@ -242,8 +239,9 @@ void FC37118::m_receiveAndPushDatapoints()
         if (size > 0)
         {
             m_data_frame->unpack(buffer_rx);
-            auto reading = m_dataframe_to_reading();
-            ingest(reading);
+            auto readings = m_dataframe_to_reading();
+            for (auto reading : *readings)
+                ingest(reading);
             if (m_terminate())
             {
                 break;
@@ -284,7 +282,7 @@ void FC37118::ingest(Reading &reading)
 }
 /**
  * @brief extended log of the c37.118 configuration
- * 
+ *
  */
 void FC37118::m_log_configuration()
 {
@@ -294,84 +292,122 @@ void FC37118::m_log_configuration()
     Logger::getLogger()->debug("  NUM_PMU: %u", m_config_frame->NUM_PMU_get());
     Logger::getLogger()->debug("  DATA_RATE: %i", m_config_frame->DATA_RATE_get());
 
-    for (auto pmuStation : m_config_frame->pmu_station_list)
+    for (auto pmu_station : m_config_frame->pmu_station_list)
     {
-        Logger::getLogger()->debug("  pmuStation STN: " + pmuStation->STN_get());
-        Logger::getLogger()->debug("    pmuStation IDCODE: %u", pmuStation->IDCODE_get());
-        Logger::getLogger()->debug("    pmuStation FORMAT_COORD: %d", pmuStation->FORMAT_COORD_get());
-        Logger::getLogger()->debug("    pmuStation FORMAT_PHASOR_TYPE: %d", pmuStation->FORMAT_PHASOR_TYPE_get());
-        Logger::getLogger()->debug("    pmuStation FORMAT_ANALOG_TYPE: %d", pmuStation->FORMAT_ANALOG_TYPE_get());
-        Logger::getLogger()->debug("    pmuStation FORMAT_FREQ_TYPE: %d", pmuStation->FORMAT_FREQ_TYPE_get());
-        Logger::getLogger()->debug("    pmuStation FORMAT: %u", pmuStation->FORMAT_get());
-        Logger::getLogger()->debug("    pmuStation PHNMR: %u", pmuStation->PHNMR_get());
+        Logger::getLogger()->debug("  pmuStation STN: " + pmu_station->STN_get());
+        Logger::getLogger()->debug("    pmuStation IDCODE: %u", pmu_station->IDCODE_get());
+        Logger::getLogger()->debug("    pmuStation FORMAT_COORD: %d", pmu_station->FORMAT_COORD_get());
+        Logger::getLogger()->debug("    pmuStation FORMAT_PHASOR_TYPE: %d", pmu_station->FORMAT_PHASOR_TYPE_get());
+        Logger::getLogger()->debug("    pmuStation FORMAT_ANALOG_TYPE: %d", pmu_station->FORMAT_ANALOG_TYPE_get());
+        Logger::getLogger()->debug("    pmuStation FORMAT_FREQ_TYPE: %d", pmu_station->FORMAT_FREQ_TYPE_get());
+        Logger::getLogger()->debug("    pmuStation FORMAT: %u", pmu_station->FORMAT_get());
+        Logger::getLogger()->debug("    pmuStation PHNMR: %u", pmu_station->PHNMR_get());
         int count = 0;
-        for (int i = 0; i < pmuStation->PHNMR_get(); i++)
+        for (int i = 0; i < pmu_station->PHNMR_get(); i++)
         {
-            Logger::getLogger()->debug("      pmuStation CHNAM PH %i: " + pmuStation->PH_NAME_get(i), count++);
-            Logger::getLogger()->debug("      pmuStation PHUNIT: %u ", pmuStation->PHUNIT_get(i));
-        }
-        
-        Logger::getLogger()->debug("    pmuStation ANNMR: %u", pmuStation->ANNMR_get());
-        for (int i = 0; i < pmuStation->ANNMR_get(); i++)
-        {
-            Logger::getLogger()->debug("      pmuStation CHNAM AN %i: " + pmuStation->AN_NAME_get(i), count++);
-            Logger::getLogger()->debug("      pmuStation ANUNIT: %u", pmuStation->ANUNIT_get(i));
+            Logger::getLogger()->debug("      pmuStation CHNAM PH %i: " + pmu_station->PH_NAME_get(i), count++);
+            Logger::getLogger()->debug("      pmuStation PHUNIT: %u ", pmu_station->PHUNIT_get(i));
         }
 
-        Logger::getLogger()->debug("    pmuStation DGNMR: %u", pmuStation->DGNMR_get());
-        for (int i = 0; i < pmuStation->DGNMR_get(); i++)
+        Logger::getLogger()->debug("    pmuStation ANNMR: %u", pmu_station->ANNMR_get());
+        for (int i = 0; i < pmu_station->ANNMR_get(); i++)
+        {
+            Logger::getLogger()->debug("      pmuStation CHNAM AN %i: " + pmu_station->AN_NAME_get(i), count++);
+            Logger::getLogger()->debug("      pmuStation ANUNIT: %u", pmu_station->ANUNIT_get(i));
+        }
+
+        Logger::getLogger()->debug("    pmuStation DGNMR: %u", pmu_station->DGNMR_get());
+        for (int i = 0; i < pmu_station->DGNMR_get(); i++)
         {
             for (int j = 0; j < 16; j++)
             {
-                Logger::getLogger()->debug("        pmuStation CHNAM DG %i: " + pmuStation->DG_NAME_get(j), count++);
+                Logger::getLogger()->debug("        pmuStation CHNAM DG %i: " + pmu_station->DG_NAME_get(j), count++);
             }
-            Logger::getLogger()->debug("      pmuStation DGUNIT: %u ", pmuStation->DGUNIT_get(i));
+            Logger::getLogger()->debug("      pmuStation DGUNIT: %u ", pmu_station->DGUNIT_get(i));
         }
     }
 }
 
 /**
+ * @brief Create a composed data point object
+ *
+ * @param name
+ * @param dps
+ * @param is_dict
+ * @return Datapoint*
+ */
+Datapoint *create_composed_data_point(const std::string &name, vector<Datapoint *> dps, bool is_dict)
+{
+    // auto my_dps = new vector<Datapoint *>;
+    auto my_dps = &dps;
+    return new Datapoint(name, *new DatapointValue(my_dps, is_dict));
+}
+
+Datapoint *pmu_station_to_datapoint(PMU_Station *pmu_station)
+{
+    auto dp_IDCODE = new Datapoint(DP_IDCODE, *new DatapointValue((double)(pmu_station->IDCODE_get())));
+    auto dp_STN = new Datapoint(DP_STN, *new DatapointValue(pmu_station->STN_get()));
+    auto dp_id = create_composed_data_point(DP_ID, {dp_STN, dp_IDCODE}, true);
+
+    auto dp_FREQ = new Datapoint(DP_FREQ, *new DatapointValue(pmu_station->FREQ_get()));
+    auto dp_DFREQ = new Datapoint(DP_DFREQ, *new DatapointValue(pmu_station->DFREQ_get()));
+    auto dp_frequency = create_composed_data_point(DP_FREQUENCY, {dp_FREQ, dp_DFREQ}, true);
+
+    auto phasor_dps = new vector<Datapoint *>;
+    for (int k = 0; k < pmu_station->PHNMR_get(); k++)
+    {
+        auto dp_mag = new Datapoint(DP_MAGNITUDE, *new DatapointValue(abs(pmu_station->PHASOR_VALUE_get(k))));
+        auto dp_angle = new Datapoint(DP_ANGLE, *new DatapointValue(arg(pmu_station->PHASOR_VALUE_get(k))));
+        phasor_dps->push_back(create_composed_data_point(pmu_station->PH_NAME_get(k), {dp_mag, dp_angle}, true));
+    }
+    auto dp_phasors = new Datapoint(DP_PHASORS, *new DatapointValue(phasor_dps, true));
+
+    auto analog_dps = new vector<Datapoint *>;
+    for (int k = 0; k < pmu_station->ANNMR_get(); k++)
+    {
+        analog_dps->push_back(new Datapoint(pmu_station->AN_NAME_get(k),
+                                            *new DatapointValue(pmu_station->ANALOG_VALUE_get(k))));
+    }
+    auto dp_analogs = new Datapoint(DP_ANALOGS, *new DatapointValue(analog_dps, true));
+
+    return create_composed_data_point(READING_PREFIX + to_string(pmu_station->IDCODE_get()), {dp_id, dp_frequency, dp_phasors, dp_analogs}, true);
+}
+
+/**
  * @brief transform the c37118 dataframe to fledge Reading
- * 
- * @return Reading 
+ *
+ * @return Reading
  */
 
-Reading FC37118::m_dataframe_to_reading()
+vector<Reading> *FC37118::m_dataframe_to_reading()
 {
-    auto time_datapoints = new vector<Datapoint *>;
-    time_datapoints->push_back(new Datapoint("SOC", *new DatapointValue((long)(m_data_frame->SOC_get()))));
-    time_datapoints->push_back(new Datapoint("FRACSEC", *new DatapointValue((long)(m_data_frame->FRACSEC_get()))));
-    time_datapoints->push_back(new Datapoint("TIME_BASE", *new DatapointValue((long)(m_config_frame->TIME_BASE_get()))));
-    auto datapoint_time = new Datapoint("Time", *new DatapointValue(time_datapoints, true));
+    auto readings = new vector<Reading>;
+    auto dp_SOC = new Datapoint(DP_SOC, *new DatapointValue((long)(m_data_frame->SOC_get())));
+    auto dp_FRACSEC = new Datapoint(DP_FRACSEC, *new DatapointValue((long)(m_data_frame->FRACSEC_get())));
+    auto dp_TIME_BASE = new Datapoint(DP_TIME_BASE, *new DatapointValue((long)(m_config_frame->TIME_BASE_get())));
+    auto dp_time = create_composed_data_point(DP_TIMESTAMP, {dp_SOC, dp_FRACSEC, dp_TIME_BASE}, true);
 
-    auto ph_datapoints = new vector<Datapoint *>;
-    for (int k = 0; k < m_pmu_station->PHNMR_get(); k++)
+    auto pmu_dps = new vector<Datapoint *>;
+    for (auto pmu_station : m_config_frame->pmu_station_list)
     {
-        auto phase_datapoints = new vector<Datapoint *>;
-
-        phase_datapoints->push_back(new Datapoint("magnitude", *new DatapointValue(abs(m_pmu_station->PHASOR_VALUE_get(k)))));
-        phase_datapoints->push_back(new Datapoint("angle", *new DatapointValue(arg(m_pmu_station->PHASOR_VALUE_get(k)))));
-
-        DatapointValue dpv(phase_datapoints, true);
-        ph_datapoints->push_back(new Datapoint(m_pmu_station->PH_NAME_get(k), dpv));
+        auto dp_pmu_station = pmu_station_to_datapoint(pmu_station);
+        if (m_conf->is_split_stations())
+        {
+            auto dp_reading = create_composed_data_point("Single_PMU", {dp_time, dp_pmu_station}, true);
+            readings->push_back(
+                Reading(to_string(m_config_frame->IDCODE_get()) + "-" + to_string(pmu_station->IDCODE_get()),
+                        dp_reading));
+        }
+        else
+            pmu_dps->push_back(dp_pmu_station);
     }
-    auto datapoint_phasors = new Datapoint("Phasors", *new DatapointValue(ph_datapoints, true));
 
-    auto analog_datapoints = new vector<Datapoint *>;
-    for (int k = 0; k < m_pmu_station->ANNMR_get(); k++)
+    auto dp_pmu_stations = new Datapoint(DP_PMUSTATIONS, *new DatapointValue(pmu_dps, true));
+
+    if (!m_conf->is_split_stations())
     {
-        analog_datapoints->push_back(new Datapoint(m_pmu_station->AN_NAME_get(k),
-                                                   *new DatapointValue(m_pmu_station->ANALOG_VALUE_get(k))));
+        auto dp_reading = create_composed_data_point("Multi_PMU", {dp_time, dp_pmu_stations}, true);
+        readings->push_back(Reading(to_string(m_config_frame->IDCODE_get()), dp_reading));
     }
-    auto datapoint_analogs = new Datapoint("Analogs", *new DatapointValue(analog_datapoints, true));
-
-    auto datapoint_FREQ = new Datapoint("FREQ", *new DatapointValue(m_pmu_station->FREQ_get()));
-    auto datapoint_DFREQ = new Datapoint("DFREQ", *new DatapointValue(m_pmu_station->DFREQ_get()));
-    auto freq_datapoints = new vector<Datapoint *>;
-    freq_datapoints->push_back(datapoint_FREQ);
-    freq_datapoints->push_back(datapoint_DFREQ);
-    auto datapoint_frequency = new Datapoint("Frequency", *new DatapointValue(freq_datapoints, true));
-
-    Reading reading(m_pmu_station->STN_get(), {datapoint_time, datapoint_phasors, datapoint_analogs, datapoint_frequency});
-    return reading;
+    return readings;
 }

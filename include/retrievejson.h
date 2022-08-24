@@ -15,15 +15,12 @@
 #include "logger.h"
 #include <vector>
 
-class RETRIEVEJSON
-{
-public:
-    static bool retrieve(rapidjson::Value *doc, const char *key, bool *target);
-    static bool retrieve(rapidjson::Value *doc, const char *key, uint *target);
-    static bool retrieve(rapidjson::Value *doc, const char *key, int *target);
-    static bool retrieve(rapidjson::Value *doc, const char *key, std::string *target);
-    static bool retrieve(rapidjson::Value *doc, const char *key, std::vector<std::string> *target);
-    static bool retrieve(rapidjson::Value *doc, const char *key, std::vector<int> *target);
-};
-
+bool retrieve(rapidjson::Value *doc, const char *key, bool *target);
+bool retrieve(rapidjson::Value *doc, const char *key, uint *target);
+bool retrieve(rapidjson::Value *doc, const char *key, int *target);
+bool retrieve(rapidjson::Value *doc, const char *key, std::string *target);
+bool retrieve(rapidjson::Value *doc, const char *key, std::vector<std::string> *target);
+bool retrieve(rapidjson::Value *doc, const char *key, std::vector<int> *target);
+bool retrieve(rapidjson::Value *doc, const char *key, std::vector<uint> *target);
+bool retrieve(rapidjson::Value *value, const char *key, rapidjson::Value *&target);
 #endif

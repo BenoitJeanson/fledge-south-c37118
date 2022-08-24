@@ -10,7 +10,7 @@
 
 #include "retrievejson.h"
 
-bool RETRIEVEJSON::retrieve(rapidjson::Value *value, const char *key, bool *target)
+bool retrieve(rapidjson::Value *value, const char *key, bool *target)
 {
     if (!value->HasMember(key) || !(*value)[key].IsBool())
     {
@@ -20,7 +20,7 @@ bool RETRIEVEJSON::retrieve(rapidjson::Value *value, const char *key, bool *targ
     return true;
 }
 
-bool RETRIEVEJSON::retrieve(rapidjson::Value *value, const char *key, uint *target)
+bool retrieve(rapidjson::Value *value, const char *key, uint *target)
 {
     if (!value->HasMember(key) || !(*value)[key].IsUint())
     {
@@ -30,7 +30,7 @@ bool RETRIEVEJSON::retrieve(rapidjson::Value *value, const char *key, uint *targ
     return true;
 }
 
-bool RETRIEVEJSON::retrieve(rapidjson::Value *value, const char *key, int *target)
+bool retrieve(rapidjson::Value *value, const char *key, int *target)
 {
     if (!value->HasMember(key) || !(*value)[key].IsInt())
     {
@@ -40,7 +40,7 @@ bool RETRIEVEJSON::retrieve(rapidjson::Value *value, const char *key, int *targe
     return true;
 }
 
-bool RETRIEVEJSON::retrieve(rapidjson::Value *value, const char *key, std::string *target)
+bool retrieve(rapidjson::Value *value, const char *key, std::string *target)
 {
     if (!value->HasMember(key) || !(*value)[key].IsString())
     {
@@ -50,7 +50,7 @@ bool RETRIEVEJSON::retrieve(rapidjson::Value *value, const char *key, std::strin
     return true;
 }
 
-bool RETRIEVEJSON::retrieve(rapidjson::Value *value, const char *key, std::vector<std::string> *target)
+bool retrieve(rapidjson::Value *value, const char *key, std::vector<std::string> *target)
 {
     if (!value->HasMember(key) || !(*value)[key].IsArray())
     {
@@ -66,7 +66,7 @@ bool RETRIEVEJSON::retrieve(rapidjson::Value *value, const char *key, std::vecto
     return true;
 }
 
-bool RETRIEVEJSON::retrieve(rapidjson::Value *value, const char *key, std::vector<int> *target)
+bool retrieve(rapidjson::Value *value, const char *key, std::vector<int> *target)
 {
     if (!value->HasMember(key) || !(*value)[key].IsArray())
     {
@@ -79,5 +79,32 @@ bool RETRIEVEJSON::retrieve(rapidjson::Value *value, const char *key, std::vecto
         
         target->push_back(val.GetInt());
     }
+    return true;
+}
+
+bool retrieve(rapidjson::Value *value, const char *key, std::vector<uint> *target)
+{
+    if (!value->HasMember(key) || !(*value)[key].IsArray())
+    {
+        return false;
+    }
+    for (auto &val : (*value)[key].GetArray())
+    {
+        if (!val.IsUint())
+            return false;
+        
+        target->push_back(val.GetUint());
+    }
+    return true;
+}
+
+bool retrieve(rapidjson::Value *value, const char *key, rapidjson::Value *&target)
+{
+    if (!value->HasMember(key))
+    {
+        return false;
+    }
+    Logger::getLogger()->info("target pointer %i", target);
+    target = &(*value)[key];
     return true;
 }

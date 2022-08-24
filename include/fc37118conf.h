@@ -25,19 +25,19 @@
 #define PMU_IDCODE "PMU_IDCODE"
 
 #define REQUEST_CONFIG_TO_PMU "REQUEST_CONFIG_TO_PMU"
+#define PMU_HARD_CONFIG "PMU_HARD_CONFIG"
 
 #define TIME_BASE "TIME_BASE"
-#define NUM_PMU "NUM_PMU"
 
-#define STNS "STNS"
+#define STATIONS "STATIONS"
 #define STN "STN"
 #define STN_IDCODE "STN_IDCODE"
 #define STN_FORMAT "STN_FORMAT"
-#define STN_PHNMR "PHNMR"
-#define STN_ANNMR "ANNMR"
-#define STN_DGNMR "DGNMR"
 
-#define STN_CHNAM "CHNAM"
+#define STN_PHNAM "PHNAM"
+#define STN_ANNAM "ANNAM"
+#define STN_DGNAM "DGNAM"
+
 #define STN_PHUNIT "PHUNIT"
 #define STN_ANUNIT "ANUNIT"
 #define STN_DIGUNIT "DIGUNIT"
@@ -50,6 +50,7 @@ class FC37118StnConf
 public:
     FC37118StnConf();
     ~FC37118StnConf();
+
     bool import(rapidjson::Value *value);
     bool get_is_complete() { return m_is_complete; }
     void to_PMU_station(PMU_Station *pmu_station);
@@ -60,14 +61,14 @@ private:
     std::string m_name;
     uint m_idcode;
     uint m_format;
-    uint m_phnmr;
-    uint m_anmr;
-    uint m_dgnmr;
-    std::vector<std::string> m_chnam;
-    std::vector<int> m_phunit;
-    std::vector<int> m_anunit;
-    std::vector<int> m_digunit;
+    std::vector<std::string> m_phnam;
+    std::vector<std::string> m_annam;
+    std::vector<std::string> m_dgnam;
+    std::vector<uint> m_phunit;
+    std::vector<uint> m_anunit;
+    std::vector<uint> m_digunit;
     uint m_fnom;
+    uint m_cfgcnt;
 };
 
 class FC37118Conf
@@ -76,30 +77,45 @@ public:
     FC37118Conf();
     FC37118Conf(const std::string &json_config);
     ~FC37118Conf();
+
     void import_json(const std::string &json_config);
     bool is_complete() { return m_is_complete; }
+    
     std::string get_pmu_IP_addr() { return m_pmu_IP_addr; }
     uint get_pmu_port() { return m_pmu_IP_port; }
     uint get_pmu_IDCODE() { return m_pmu_IDCODE; }
     uint get_my_IDCODE() { return m_my_IDCODE; }
     uint get_reconnection_delay() { return m_reconnection_delay; }
+    
+    /**
+     * @brief if true, the plugin will request the configuration to the PMU
+     * if false, the plugin will use the configuration set in PMU_HARD_CONFIG
+     * Warning, the configuration shall be exactly the same as the one of the PMU
+     * 
+     * @return true 
+     * @return false 
+     */
     bool is_request_config_to_pmu() { return m_request_config_to_pmu; }
+    
     void to_conf_frame(CONFIG_Frame *conf_frame);
 
 private:
     bool m_is_complete;
 
+    // connection parameters
     std::string m_pmu_IP_addr;
     uint m_pmu_IP_port;
     uint m_reconnection_delay;
+
+    // c37.118 parameters
     uint m_my_IDCODE;
     uint m_pmu_IDCODE;
+
     bool m_request_config_to_pmu;
+
     uint m_time_base;
-    uint m_num_pmu;
-    uint m_cfgcnt;
     int m_data_rate;
-    std::vector<FC37118StnConf> m_stns;
+    std::vector<FC37118StnConf*> m_stns;
 };
 
 #endif

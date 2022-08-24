@@ -55,41 +55,37 @@ public:
     void stop();
     void register_ingest(void *data, INGEST_CB cb);
     void ingest(Reading &reading);
-    
 
 private:
-    // configuration
+    // Configuration
     FC37118Conf *m_conf;
-
-    // when m_exit_promise is set when shutdown is requested and trigger stop to the threads through m_exit_future
-    bool m_is_running;
     bool m_c37118_configuration_ready;
-    bool m_terminate();
+    void m_log_configuration();
 
+    // Running
+    bool m_is_running;
+    bool m_terminate();
     std::thread *m_receiving_thread;
 
     // Connection to PMU
-    const char *m_inet_add;
-    int m_portno;
     int m_sockfd;
     struct sockaddr_in m_serv_addr;
     bool m_connect();
-    void m_init_Pmu_Dialog();
 
-    // C37.118
+    // C37.118 objects handling
     CMD_Frame *m_cmd;
     CONFIG_Frame *m_config_frame;
     HEADER_Frame *m_header;
     DATA_Frame *m_data_frame;
     PMU_Station *m_pmu_station;
     bool m_send_cmd(int cmd);
+    void m_init_Pmu_Dialog();
 
     // Fledge
     Reading m_dataframe_to_reading();
     std::string m_asset;
     INGEST_CB m_ingest; // Callback function used to send data to south service
     void *m_data;       // Ingest function data
-
     void m_receiveAndPushDatapoints();
 };
 #endif

@@ -22,7 +22,6 @@ FC37118::FC37118() : m_conf(new FC37118Conf),
                      m_sockfd(0)
 {
     Logger::getLogger()->setMinLevel(DEBUG_LEVEL);
-    // m_terminate_future = m_terminate_promise.get_future();
 }
 
 FC37118::~FC37118()
@@ -49,7 +48,7 @@ void FC37118::stop()
     close(m_sockfd);
     if (m_receiving_thread != nullptr)
     {
-        Logger::getLogger()->info("waiting read thread");
+        Logger::getLogger()->info("waiting receiving thread to stop");
         m_receiving_thread->join();
     }
     Logger::getLogger()->info("plugin stoped");
@@ -71,10 +70,10 @@ bool FC37118::set_conf(const std::string &conf)
     m_conf->import_json(conf);
     if (!m_conf->is_complete())
     {
-        Logger::getLogger()->warn("Unable to set Plugin configuration");
+        Logger::getLogger()->error("Unable to ingest Plugin configuration");
         return false;
     }
-    Logger::getLogger()->info("Plugin configuration successfully set");
+    Logger::getLogger()->info("Plugin configuration successfully ingested");
 
     if (m_conf->is_request_config_to_pmu())
     {
@@ -83,7 +82,11 @@ bool FC37118::set_conf(const std::string &conf)
     else
     {
         m_conf->to_conf_frame(m_config_frame);
+        m_pmu_station = m_config_frame->PMUSTATION_GETbyIDCODE(m_conf->get_pmu_IDCODE());
+
         m_c37118_configuration_ready = true;
+
+        m_log_configuration();
     }
 
     m_serv_addr.sin_family = AF_INET;
@@ -91,7 +94,7 @@ bool FC37118::set_conf(const std::string &conf)
     m_serv_addr.sin_port = htons(m_conf->get_pmu_port());
     if (was_running)
     {
-        Logger::getLogger()->warn("_____________ attempt to restart");
+        Logger::getLogger()->info("restarting");
         start();
     }
     return true;
@@ -118,7 +121,7 @@ bool FC37118::m_connect()
 
     while (connect(m_sockfd, (struct sockaddr *)&m_serv_addr, sizeof(m_serv_addr)) != 0)
     {
-        Logger::getLogger()->info("Connection attempt in %i seconds", m_conf->get_reconnection_delay());
+        Logger::getLogger()->debug("Connection attempt in %i seconds", m_conf->get_reconnection_delay());
         sleep(m_conf->get_reconnection_delay());
         if (!m_is_running)
         {
@@ -126,7 +129,7 @@ bool FC37118::m_connect()
             return false;
         }
     }
-    Logger::getLogger()->info("connected");
+    Logger::getLogger()->info("connected to PMU");
     return true;
 }
 
@@ -203,7 +206,7 @@ void FC37118::m_init_Pmu_Dialog()
         }
         else
         {
-            Logger::getLogger()->info("could not retrieve c37.118 configuration");
+            Logger::getLogger()->error("could not retrieve c37.118 configuration");
             return;
         }
     }
@@ -223,12 +226,14 @@ void FC37118::m_receiveAndPushDatapoints()
         m_init_Pmu_Dialog();
     }
 
+    m_log_configuration();
+
     if (!m_c37118_configuration_ready || m_terminate())
     {
         return;
     }
 
-    Logger::getLogger()->debug("conf received, receiving real time data");
+    Logger::getLogger()->debug("configuration OK, ready to receive real time data");
     m_send_cmd(C37118_CMD_TURNON_TX);
 
     do
@@ -246,7 +251,7 @@ void FC37118::m_receiveAndPushDatapoints()
         }
         else
         {
-            Logger::getLogger()->info("connexion lost with PMU. Reconnecting...");
+            Logger::getLogger()->info("No connexion with PMU");
             if (m_connect())
             {
                 m_send_cmd(C37118_CMD_TURNON_TX); // after a deconnection, shall request data
@@ -277,6 +282,59 @@ void FC37118::ingest(Reading &reading)
 {
     (*m_ingest)(m_data, reading);
 }
+/**
+ * @brief extended log of the c37.118 configuration
+ * 
+ */
+void FC37118::m_log_configuration()
+{
+    Logger::getLogger()->debug("Configuration Log:");
+
+    Logger::getLogger()->debug("  TIME_BASE: %u", m_config_frame->TIME_BASE_get());
+    Logger::getLogger()->debug("  NUM_PMU: %u", m_config_frame->NUM_PMU_get());
+    Logger::getLogger()->debug("  DATA_RATE: %i", m_config_frame->DATA_RATE_get());
+
+    for (auto pmuStation : m_config_frame->pmu_station_list)
+    {
+        Logger::getLogger()->debug("  pmuStation STN: " + pmuStation->STN_get());
+        Logger::getLogger()->debug("    pmuStation IDCODE: %u", pmuStation->IDCODE_get());
+        Logger::getLogger()->debug("    pmuStation FORMAT_COORD: %d", pmuStation->FORMAT_COORD_get());
+        Logger::getLogger()->debug("    pmuStation FORMAT_PHASOR_TYPE: %d", pmuStation->FORMAT_PHASOR_TYPE_get());
+        Logger::getLogger()->debug("    pmuStation FORMAT_ANALOG_TYPE: %d", pmuStation->FORMAT_ANALOG_TYPE_get());
+        Logger::getLogger()->debug("    pmuStation FORMAT_FREQ_TYPE: %d", pmuStation->FORMAT_FREQ_TYPE_get());
+        Logger::getLogger()->debug("    pmuStation FORMAT: %u", pmuStation->FORMAT_get());
+        Logger::getLogger()->debug("    pmuStation PHNMR: %u", pmuStation->PHNMR_get());
+        int count = 0;
+        for (int i = 0; i < pmuStation->PHNMR_get(); i++)
+        {
+            Logger::getLogger()->debug("      pmuStation CHNAM PH %i: " + pmuStation->PH_NAME_get(i), count++);
+            Logger::getLogger()->debug("      pmuStation PHUNIT: %u ", pmuStation->PHUNIT_get(i));
+        }
+        
+        Logger::getLogger()->debug("    pmuStation ANNMR: %u", pmuStation->ANNMR_get());
+        for (int i = 0; i < pmuStation->ANNMR_get(); i++)
+        {
+            Logger::getLogger()->debug("      pmuStation CHNAM AN %i: " + pmuStation->AN_NAME_get(i), count++);
+            Logger::getLogger()->debug("      pmuStation ANUNIT: %u", pmuStation->ANUNIT_get(i));
+        }
+
+        Logger::getLogger()->debug("    pmuStation DGNMR: %u", pmuStation->DGNMR_get());
+        for (int i = 0; i < pmuStation->DGNMR_get(); i++)
+        {
+            for (int j = 0; j < 16; j++)
+            {
+                Logger::getLogger()->debug("        pmuStation CHNAM DG %i: " + pmuStation->DG_NAME_get(j), count++);
+            }
+            Logger::getLogger()->debug("      pmuStation DGUNIT: %u ", pmuStation->DGUNIT_get(i));
+        }
+    }
+}
+
+/**
+ * @brief transform the c37118 dataframe to fledge Reading
+ * 
+ * @return Reading 
+ */
 
 Reading FC37118::m_dataframe_to_reading()
 {
@@ -292,7 +350,7 @@ Reading FC37118::m_dataframe_to_reading()
         auto phase_datapoints = new vector<Datapoint *>;
 
         phase_datapoints->push_back(new Datapoint("magnitude", *new DatapointValue(abs(m_pmu_station->PHASOR_VALUE_get(k)))));
-        phase_datapoints->push_back(new Datapoint("angle", *new DatapointValue(arg(m_pmu_station->PHASOR_VALUE_get(k)) * 180 / M_PI)));
+        phase_datapoints->push_back(new Datapoint("angle", *new DatapointValue(arg(m_pmu_station->PHASOR_VALUE_get(k)))));
 
         DatapointValue dpv(phase_datapoints, true);
         ph_datapoints->push_back(new Datapoint(m_pmu_station->PH_NAME_get(k), dpv));

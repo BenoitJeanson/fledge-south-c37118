@@ -15,18 +15,20 @@ FC37118StnConf::~FC37118StnConf() {}
 
 bool FC37118StnConf::import(rapidjson::Value *value)
 {
+    Logger::getLogger()->setMinLevel("debug");
+
     bool is_complete = true;
-    is_complete &= RETRIEVEJSON::retrieve(value, STN, &m_name);
-    is_complete &= RETRIEVEJSON::retrieve(value, STN_IDCODE, &m_idcode);
-    is_complete &= RETRIEVEJSON::retrieve(value, STN_FORMAT, &m_format);
-    is_complete &= RETRIEVEJSON::retrieve(value, STN_PHNMR, &m_phnmr);
-    is_complete &= RETRIEVEJSON::retrieve(value, STN_ANNMR, &m_anmr);
-    is_complete &= RETRIEVEJSON::retrieve(value, STN_DGNMR, &m_dgnmr);
-    is_complete &= RETRIEVEJSON::retrieve(value, STN_CHNAM, &m_chnam);
-    is_complete &= RETRIEVEJSON::retrieve(value, STN_PHUNIT, &m_phunit);
-    is_complete &= RETRIEVEJSON::retrieve(value, STN_ANUNIT, &m_anunit);
-    is_complete &= RETRIEVEJSON::retrieve(value, STN_DIGUNIT, &m_digunit);
-    is_complete &= RETRIEVEJSON::retrieve(value, STN_FNOM, &m_fnom);
+    is_complete &= retrieve(value, STN, &m_name);
+    is_complete &= retrieve(value, STN_IDCODE, &m_idcode);
+    is_complete &= retrieve(value, STN_FORMAT, &m_format);
+    is_complete &= retrieve(value, STN_PHNAM, &m_phnam);
+    is_complete &= retrieve(value, STN_PHUNIT, &m_phunit);
+    is_complete &= retrieve(value, STN_ANNAM, &m_annam);
+    is_complete &= retrieve(value, STN_ANUNIT, &m_anunit);
+    is_complete &= retrieve(value, STN_DGNAM, &m_dgnam);
+    is_complete &= retrieve(value, STN_DIGUNIT, &m_digunit);
+    is_complete &= retrieve(value, STN_FNOM, &m_fnom);
+    is_complete &= retrieve(value, CFGCNT, &m_cfgcnt);
     m_is_complete = is_complete;
     return m_is_complete;
 }
@@ -36,26 +38,17 @@ void FC37118StnConf::to_PMU_station(PMU_Station *pmu_station)
     pmu_station->STN_set(m_name);
     pmu_station->IDCODE_set(m_idcode);
     pmu_station->FORMAT_set(m_format);
-    pmu_station->PHNMR_set(m_phnmr);
-    pmu_station->ANNMR_set(m_anmr);
-    pmu_station->DGNMR_set(m_dgnmr);
-    int count = 0;
-    // TODO : clarify configuration for phasors and analogs
-    for (int ph = 0; ph < m_phnmr; ph++)
+    for (int ph = 0; ph < m_phnam.size(); ph++)
     {
-        pmu_station->PHASOR_add(m_chnam[count], STN_PHUNIT[ph]);
-        count++;
+        pmu_station->PHASOR_add(m_phnam[ph], m_phunit[ph]);
     }
-    for (int an = 0; an < m_anmr; an++)
+
+    for (int an = 0; an < m_annam.size(); an++)
     {
-        pmu_station->ANALOG_add(m_chnam[count], STN_PHUNIT[an]);
-        count++;
+        pmu_station->ANALOG_add(m_annam[an], m_anunit[an]);
     }
-    // TODO : handle digital
-    // for (int dg = 0; dg<m_dgnmr; dg++){
-    //     pmu_station->DIGITAL_add(m_chnam[count], STN_PHUNIT[dg]);
-    //     count++;
-    // }
+
+    pmu_station->DIGITAL_add(m_dgnam, 0, 65535);
 }
 
 FC37118Conf::FC37118Conf() : m_is_complete(false),
@@ -83,48 +76,55 @@ void FC37118Conf::import_json(const std::string &json_config)
     if (!doc->IsObject())
         return;
 
-    is_complete &= RETRIEVEJSON::retrieve(doc, IP_ADDR, &m_pmu_IP_addr);
-    is_complete &= RETRIEVEJSON::retrieve(doc, IP_PORT, &m_pmu_IP_port);
-    is_complete &= RETRIEVEJSON::retrieve(doc, RECONNECTION_DELAY, &m_reconnection_delay);
-    is_complete &= RETRIEVEJSON::retrieve(doc, MY_IDCODE, &m_my_IDCODE);
+    is_complete &= retrieve(doc, IP_ADDR, &m_pmu_IP_addr);
+    is_complete &= retrieve(doc, IP_PORT, &m_pmu_IP_port);
+    is_complete &= retrieve(doc, RECONNECTION_DELAY, &m_reconnection_delay);
+    is_complete &= retrieve(doc, MY_IDCODE, &m_my_IDCODE);
 
-    is_complete &= RETRIEVEJSON::retrieve(doc, PMU_IDCODE, &m_pmu_IDCODE);
-    is_complete &= RETRIEVEJSON::retrieve(doc, REQUEST_CONFIG_TO_PMU, &m_request_config_to_pmu);
-    if (m_request_config_to_pmu)
+    is_complete &= retrieve(doc, PMU_IDCODE, &m_pmu_IDCODE);
+    is_complete &= retrieve(doc, REQUEST_CONFIG_TO_PMU, &m_request_config_to_pmu);
+
+    if (!m_request_config_to_pmu)
     {
-        is_complete &= RETRIEVEJSON::retrieve(doc, TIME_BASE, &m_time_base);
-        is_complete &= RETRIEVEJSON::retrieve(doc, NUM_PMU, &m_num_pmu);
-        is_complete &= RETRIEVEJSON::retrieve(doc, CFGCNT, &m_cfgcnt);
-        is_complete &= RETRIEVEJSON::retrieve(doc, DATA_RATE, &m_data_rate);
+        rapidjson::Value *pmuHardConf;
+        if (!retrieve(doc, PMU_HARD_CONFIG, pmuHardConf))
+            return;
+        if (!pmuHardConf->IsObject())
+            return;
 
-        if (!doc->HasMember(STNS) || !(*doc)[STNS].IsArray())
+        is_complete &= retrieve(pmuHardConf, TIME_BASE, &m_time_base);
+        is_complete &= retrieve(pmuHardConf, DATA_RATE, &m_data_rate);
+
+        if (!pmuHardConf->HasMember(STATIONS) || !(*pmuHardConf)[STATIONS].IsArray())
             return;
         else
         {
-            for (auto &stn : (*doc)[STNS].GetArray())
+            for (auto &stn : (*pmuHardConf)[STATIONS].GetArray())
             {
                 if (!stn.IsObject())
                     return;
                 auto stn_conf = new FC37118StnConf();
                 if (!stn_conf->import(&stn))
                     return;
-                m_stns.push_back(*stn_conf);
+                m_stns.push_back(stn_conf);
             }
         }
     }
+    Logger::getLogger()->debug("import_json() succeeded");
     m_is_complete = is_complete;
 }
 
 void FC37118Conf::to_conf_frame(CONFIG_Frame *conf_frame)
 {
-    Logger::getLogger()->debug("enter to_conf_frame()");
     conf_frame->IDCODE_set(m_my_IDCODE);
     conf_frame->TIME_BASE_set(m_time_base);
-    conf_frame->NUM_PMU_set(m_num_pmu);
-    for (auto &stn : m_stns)
+    //    conf_frame->NUM_PMU_set(m_num_pmu);
+    conf_frame->DATA_RATE_set(m_data_rate);
+    for (auto stn : m_stns)
     {
-        PMU_Station pmu_station;
-        stn.to_PMU_station(&pmu_station);
+        auto pmu_station = new PMU_Station();
+        stn->to_PMU_station(pmu_station);
+        conf_frame->PMUSTATION_ADD(pmu_station);
     }
     Logger::getLogger()->debug("to_conf_frame() succeeded");
 }

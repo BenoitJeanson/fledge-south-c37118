@@ -25,30 +25,34 @@ using namespace std;
 
 // PLUGIN DEFAULT TLS CONF
 #define PMU_CONF_LABEL "PMU"
-#define PMU_CONF QUOTE({                                     \
-        IP_ADDR : "127.0.0.1",                               \
-        IP_PORT : 1410,                                      \
-        RECONNECTION_DELAY : 1,                              \
-        MY_IDCODE : 7,                                       \
-        PMU_IDCODE : 1,                                      \
-        REQUEST_CONFIG_TO_PMU : true,                       \
-        TIME_BASE : 1000000,                                 \
-        NUM_PMU : 1,                                         \
-        STNS : [ {                                           \
-                STN : "Random Station",                      \
-                STN_IDCODE : 5,                              \
-                STN_FORMAT : 15,                             \
-                STN_PHNMR : 3,                               \
-                STN_ANNMR : 1,                               \
-                STN_DGNMR : 0,                               \
-                STN_CHNAM : [ "VA", "VB", "VC", "analog1" ], \
-                STN_PHUNIT : [ 0, 0, 0 ],                    \
-                STN_ANUNIT : [0],                            \
-                STN_DIGUNIT : [0],                           \
-                STN_FNOM : 1                                 \
-        } ],                                                 \
-        CFGCNT : 1,                                          \
-        DATA_RATE : 30                                       \
+#define PMU_CONF QUOTE({                            \
+    IP_ADDR : "127.0.0.1",                          \
+    IP_PORT : 1410,                                 \
+    RECONNECTION_DELAY : 1,                         \
+    MY_IDCODE : 7,                                  \
+    PMU_IDCODE : 1,                                 \
+    REQUEST_CONFIG_TO_PMU : false,                  \
+    PMU_HARD_CONFIG : {                             \
+        TIME_BASE : 1000000,                        \
+        STATIONS : [ {                              \
+            STN : "Random Station",                 \
+            STN_IDCODE : 1410,                      \
+            STN_FORMAT : 15,                        \
+            STN_PHNAM : [ "VA", "VB", "VC" ],       \
+            STN_ANNAM : ["analog1"],                \
+            STN_DGNAM :                             \
+                [ "dg1", "dg2", "dg3", "dg4",       \
+                  "dg5", "dg6", "dg7", "dg8",       \
+                  "dg9", "dg10", "dg11", "dg12",    \
+                  "dg13", "dg14", "dg15", "dg16" ], \
+            STN_PHUNIT : [ 0, 0, 0 ],               \
+            STN_ANUNIT : [0],                       \
+            STN_DIGUNIT : [65535],                  \
+            STN_FNOM : 1,                           \
+            CFGCNT : 1                              \
+        } ],                                        \
+        DATA_RATE : 30                              \
+    }                                               \
 })
 
 /**
@@ -56,30 +60,30 @@ using namespace std;
  */
 
 const static char *default_config = QUOTE({
-        "plugin" : {
-                "description" : "IEEE C37.118 south plugin",
-                "type" : "string",
-                "default" : PLUGIN_NAME,
-                "readonly" : "true"
-        },
+    "plugin" : {
+        "description" : "IEEE C37.118 south plugin",
+        "type" : "string",
+        "default" : PLUGIN_NAME,
+        "readonly" : "true"
+    },
 
-        "asset" : {
-                "description" : "Asset name",
-                "type" : "string",
-                "default" : "C37.118",
-                "order" : "1",
-                "displayName" : "C37.118",
-                "mandatory" : "true"
-        },
+    "asset" : {
+        "description" : "Asset name",
+        "type" : "string",
+        "default" : "C37.118",
+        "order" : "1",
+        "displayName" : "C37.118",
+        "mandatory" : "true"
+    },
 
-        PMU_CONF_LABEL : {
-                "description" : "PMU configuration",
-                "type" : "JSON",
-                "default" : PMU_CONF,
-                "order" : "2",
-                "displayName" : PMU_CONF_LABEL,
-                "mandatory" : "true"
-        }
+    PMU_CONF_LABEL : {
+        "description" : "PMU configuration",
+        "type" : "JSON",
+        "default" : PMU_CONF,
+        "order" : "2",
+        "displayName" : PMU_CONF_LABEL,
+        "mandatory" : "true"
+    }
 });
 
 /**
@@ -88,114 +92,114 @@ const static char *default_config = QUOTE({
 extern "C"
 {
 
-        /**
-         * The plugin information structure
-         */
-        static PLUGIN_INFORMATION info = {
-            PLUGIN_NAME,       // Name
-            VERSION,           // Version
-            SP_ASYNC,          // Flags
-            PLUGIN_TYPE_SOUTH, // Type
-            "1.0.0",           // Interface version
-            default_config     // Default configuration
-        };
+    /**
+     * The plugin information structure
+     */
+    static PLUGIN_INFORMATION info = {
+        PLUGIN_NAME,       // Name
+        VERSION,           // Version
+        SP_ASYNC,          // Flags
+        PLUGIN_TYPE_SOUTH, // Type
+        "1.0.0",           // Interface version
+        default_config     // Default configuration
+    };
 
-        /**
-         * Return the information about this plugin
-         */
-        PLUGIN_INFORMATION *plugin_info()
+    /**
+     * Return the information about this plugin
+     */
+    PLUGIN_INFORMATION *plugin_info()
+    {
+        return &info;
+    }
+
+    /**
+     * Initialise the plugin, called to get the plugin handle
+     */
+    PLUGIN_HANDLE plugin_init(ConfigCategory *config)
+    {
+        if (!config->itemExists(PMU_CONF_LABEL))
+            return nullptr;
+        FC37118 *fc37118 = new FC37118();
+        if (!fc37118->set_conf(config->getValue(PMU_CONF_LABEL)))
+            return nullptr;
+
+        if (config->itemExists("asset"))
         {
-                return &info;
+            fc37118->set_asset_name(config->getValue("asset"));
         }
-
-        /**
-         * Initialise the plugin, called to get the plugin handle
-         */
-        PLUGIN_HANDLE plugin_init(ConfigCategory *config)
+        else
         {
-                if (!config->itemExists(PMU_CONF_LABEL))
-                        return nullptr;
-                FC37118 *fc37118 = new FC37118();
-                if (!fc37118->set_conf(config->getValue(PMU_CONF_LABEL)))
-                        return nullptr;
-
-                if (config->itemExists("asset"))
-                {
-                        fc37118->set_asset_name(config->getValue("asset"));
-                }
-                else
-                {
-                        fc37118->set_asset_name("C37118");
-                }
-                Logger::getLogger()->info("m_assetName set to %s", fc37118->get_asset_name());
-
-                return (PLUGIN_HANDLE)fc37118;
+            fc37118->set_asset_name("C37118");
         }
+        Logger::getLogger()->info("m_assetName set to %s", fc37118->get_asset_name());
 
-        /**
-         * Start the Async handling for the plugin
-         */
-        void plugin_start(PLUGIN_HANDLE *handle)
+        return (PLUGIN_HANDLE)fc37118;
+    }
+
+    /**
+     * Start the Async handling for the plugin
+     */
+    void plugin_start(PLUGIN_HANDLE *handle)
+    {
+        if (!handle)
+            return;
+
+        Logger::getLogger()->info("Starting the plugin");
+
+        auto *fc37118 = (FC37118 *)handle;
+        fc37118->start();
+    }
+
+    /**
+     * Register ingest callback
+     */
+    void plugin_register_ingest(PLUGIN_HANDLE *handle, INGEST_CB cb, void *data)
+    {
+        if (!handle)
+            throw new exception();
+
+        auto *fc37118 = (FC37118 *)handle;
+        fc37118->register_ingest(data, cb);
+    }
+    /**
+     * Poll for a plugin reading
+     */
+    Reading plugin_poll(PLUGIN_HANDLE *handle)
+    {
+        throw runtime_error("C37-118 is an async plugin, poll should not be called");
+    }
+
+    /**
+     * Reconfigure the plugin
+     */
+    void plugin_reconfigure(PLUGIN_HANDLE *handle, string &newConfig)
+    {
+        ConfigCategory conf("dht", newConfig);
+        auto *fc37118 = (FC37118 *)*handle;
+        if (conf.itemExists("asset"))
+            fc37118->set_asset_name(conf.getValue("asset"));
+
+        if (conf.itemExists(PMU_CONF_LABEL))
         {
-                if (!handle)
-                        return;
-
-                Logger::getLogger()->info("Starting the plugin");
-
-                auto *fc37118 = (FC37118 *)handle;
-                fc37118->start();
+            fc37118->set_conf(conf.getValue(PMU_CONF_LABEL));
         }
+    }
 
-        /**
-         * Register ingest callback
-         */
-        void plugin_register_ingest(PLUGIN_HANDLE *handle, INGEST_CB cb, void *data)
-        {
-                if (!handle)
-                        throw new exception();
+    /**
+     * plugin plugin_write entry point
+     * NOT USED
+     */
+    bool plugin_write(PLUGIN_HANDLE *handle, string &name, string &value)
+    {
+        return false;
+    }
 
-                auto *fc37118 = (FC37118 *)handle;
-                fc37118->register_ingest(data, cb);
-        }
-        /**
-         * Poll for a plugin reading
-         */
-        Reading plugin_poll(PLUGIN_HANDLE *handle)
-        {
-                throw runtime_error("C37-118 is an async plugin, poll should not be called");
-        }
-
-        /**
-         * Reconfigure the plugin
-         */
-        void plugin_reconfigure(PLUGIN_HANDLE *handle, string &newConfig)
-        {
-                ConfigCategory conf("dht", newConfig);
-                auto *fc37118 = (FC37118 *)*handle;
-                if (conf.itemExists("asset"))
-                        fc37118->set_asset_name(conf.getValue("asset"));
-
-                if (conf.itemExists(PMU_CONF_LABEL))
-                {
-                        fc37118->set_conf(conf.getValue(PMU_CONF_LABEL));
-                }
-        }
-
-        /**
-         * plugin plugin_write entry point
-         * NOT USED
-         */
-        bool plugin_write(PLUGIN_HANDLE *handle, string &name, string &value)
-        {
-                return false;
-        }
-
-        /**
-         * Shutdown the plugin
-         */
-        void plugin_shutdown(PLUGIN_HANDLE *handle)
-        {
-                auto *fc37118 = (FC37118 *)handle;
-                delete fc37118;
-        }
+    /**
+     * Shutdown the plugin
+     */
+    void plugin_shutdown(PLUGIN_HANDLE *handle)
+    {
+        auto *fc37118 = (FC37118 *)handle;
+        delete fc37118;
+    }
 };

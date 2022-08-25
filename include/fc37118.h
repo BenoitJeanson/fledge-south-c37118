@@ -98,10 +98,10 @@ private:
     bool m_connect();
 
     // C37.118 objects handling
-    CMD_Frame *m_cmd;
+    CMD_Frame m_cmd;
     CONFIG_Frame *m_config_frame;
-    HEADER_Frame *m_header;
     DATA_Frame *m_data_frame;
+    void m_init_c37118();
     bool m_send_cmd(int cmd);
     void m_init_Pmu_Dialog();
 

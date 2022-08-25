@@ -118,7 +118,7 @@ private:
 
     uint m_time_base;
     int m_data_rate;
-    std::vector<FC37118StnConf *> m_stns;
+    std::vector<FC37118StnConf> m_stns;
 };
 
 #endif

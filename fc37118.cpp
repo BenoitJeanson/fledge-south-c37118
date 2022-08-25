@@ -12,11 +12,9 @@
 
 #define DEBUG_LEVEL "debug"
 
-FC37118::FC37118() : m_conf(new FC37118Conf),
-                     m_cmd(new CMD_Frame()),
-                     m_config_frame(new CONFIG_Frame()),
-                     m_header(new HEADER_Frame("")),
-                     m_data_frame(new DATA_Frame(m_config_frame)),
+FC37118::FC37118() : m_conf(nullptr),
+                     m_config_frame(nullptr),
+                     m_data_frame(nullptr),
                      m_is_running(false),
                      m_sockfd(0)
 {
@@ -30,6 +28,9 @@ FC37118::~FC37118()
     {
         stop();
     }
+    delete m_config_frame;
+    delete m_data_frame;
+    delete m_conf;
 }
 
 void FC37118::start()
@@ -58,6 +59,15 @@ bool FC37118::m_terminate()
     return !m_is_running;
 }
 
+void FC37118::m_init_c37118()
+{
+    delete m_data_frame;
+    delete m_config_frame;
+    m_config_frame = new CONFIG_Frame();
+    m_data_frame = new DATA_Frame(m_config_frame);
+}
+
+
 bool FC37118::set_conf(const std::string &conf)
 {
     bool was_running = m_is_running;
@@ -66,6 +76,8 @@ bool FC37118::set_conf(const std::string &conf)
         Logger::getLogger()->info("Configuration change requested, stoping the plugin");
         stop();
     }
+    delete m_conf;
+    m_conf = new FC37118Conf();
     m_conf->import_json(conf);
     if (!m_conf->is_complete())
     {
@@ -80,6 +92,7 @@ bool FC37118::set_conf(const std::string &conf)
     }
     else
     {
+        m_init_c37118();
         m_conf->to_conf_frame(m_config_frame);
 
         m_c37118_configuration_ready = true;
@@ -141,8 +154,8 @@ bool FC37118::m_connect()
 bool FC37118::m_send_cmd(int cmd)
 {
     unsigned char *buffer_tx;
-    m_cmd->CMD_set(cmd);
-    unsigned short size = m_cmd->pack(&buffer_tx);
+    m_cmd.CMD_set(cmd);
+    unsigned short size = m_cmd.pack(&buffer_tx);
     int n;
     do
     {
@@ -173,7 +186,7 @@ void FC37118::m_init_Pmu_Dialog()
         return;
     }
 
-    m_cmd->IDCODE_set(m_conf->get_my_IDCODE());
+    m_cmd.IDCODE_set(m_conf->get_my_IDCODE());
 
     // Request & receive Header Frame
     if (m_send_cmd(C37118_CMD_SEND_DATA))
@@ -181,8 +194,9 @@ void FC37118::m_init_Pmu_Dialog()
         int size = read(m_sockfd, buffer_rx, BUFFER_SIZE);
         if (size > 0)
         {
-            m_header->unpack(buffer_rx);
-            Logger::getLogger()->info("header from PMU: " + m_header->DATA_get());
+            HEADER_Frame header("");
+            header.unpack(buffer_rx);
+            Logger::getLogger()->info("header from PMU: " + header.DATA_get());
         }
         else
         {
@@ -196,7 +210,8 @@ void FC37118::m_init_Pmu_Dialog()
     {
         int size = read(m_sockfd, buffer_rx, BUFFER_SIZE);
         if (size > 0)
-        {
+        {   
+            m_init_c37118();
             m_config_frame->unpack(buffer_rx);
             m_c37118_configuration_ready = true;
             Logger::getLogger()->info("c37.118 configuration retrieved");
@@ -223,16 +238,15 @@ void FC37118::m_receiveAndPushDatapoints()
         m_init_Pmu_Dialog();
     }
 
-    m_log_configuration();
-
     if (!m_c37118_configuration_ready || m_terminate())
     {
         return;
     }
 
+    m_log_configuration();
+
     Logger::getLogger()->debug("configuration OK, ready to receive real time data");
     m_send_cmd(C37118_CMD_TURNON_TX);
-
     do
     {
         size = read(m_sockfd, buffer_rx, BUFFER_SIZE);

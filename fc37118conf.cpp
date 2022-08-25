@@ -104,8 +104,8 @@ void FC37118Conf::import_json(const std::string &json_config)
             {
                 if (!stn.IsObject())
                     return;
-                auto stn_conf = new FC37118StnConf();
-                if (!stn_conf->import(&stn))
+                FC37118StnConf stn_conf;
+                if (!stn_conf.import(&stn))
                     return;
                 m_stns.push_back(stn_conf);
             }
@@ -124,7 +124,7 @@ void FC37118Conf::to_conf_frame(CONFIG_Frame *conf_frame)
     for (auto stn : m_stns)
     {
         auto pmu_station = new PMU_Station();
-        stn->to_PMU_station(pmu_station);
+        stn.to_PMU_station(pmu_station);
         conf_frame->PMUSTATION_ADD(pmu_station);
     }
     Logger::getLogger()->debug("to_conf_frame() succeeded");

@@ -23,35 +23,54 @@ using namespace std;
 
 #define PMU_CONF_LABEL "PMU"
 
-#define PMU_CONF QUOTE({                            \
-    IP_ADDR : "127.0.0.1",                          \
-    IP_PORT : 1410,                                 \
-    RECONNECTION_DELAY : 1,                         \
-    MY_IDCODE : 7,                                  \
-    STREAMSOURCE_IDCODE : 1,                        \
-    SPLIT_STATIONS : false,                          \
-    REQUEST_CONFIG_TO_SENDER : true,                \
-    SENDER_HARD_CONFIG : {                          \
-        TIME_BASE : 1000000,                        \
-        STATIONS : [ {                              \
-            STN : "Random Station",                 \
-            STN_IDCODE : 5,                         \
-            STN_FORMAT : 15,                        \
-            STN_PHNAM : [ "VA", "VB", "VC" ],       \
-            STN_ANNAM : ["analog1"],                \
-            STN_DGNAM :                             \
-                [ "dg1", "dg2", "dg3", "dg4",       \
-                  "dg5", "dg6", "dg7", "dg8",       \
-                  "dg9", "dg10", "dg11", "dg12",    \
-                  "dg13", "dg14", "dg15", "dg16" ], \
-            STN_PHUNIT : [ 0, 0, 0 ],               \
-            STN_ANUNIT : [0],                       \
-            STN_DIGUNIT : [65535],                  \
-            STN_FNOM : 1,                           \
-            CFGCNT : 1                              \
-        } ],                                        \
-        DATA_RATE : 30                              \
-    }                                               \
+#define PMU_CONF QUOTE({                                \
+    IP_ADDR : "127.0.0.1",                              \
+    IP_PORT : 1410,                                     \
+    RECONNECTION_DELAY : 1,                             \
+    MY_IDCODE : 7,                                      \
+    STREAMSOURCE_IDCODE : 2,                            \
+    SPLIT_STATIONS : true,                              \
+    REQUEST_CONFIG_TO_SENDER : false,                   \
+    SENDER_HARD_CONFIG : {                              \
+        TIME_BASE : 1000000,                            \
+        STATIONS : [                                    \
+            {                                           \
+                STN : "RANDOM STATION 1",               \
+                STN_IDCODE : 5,                         \
+                STN_FORMAT : 15,                        \
+                STN_PHNAM : [ "VA", "VB", "VC" ],       \
+                STN_ANNAM : ["ANALOG"],                 \
+                STN_DGNAM :                             \
+                    [ "DG1", "DG2", "DG3", "DG4",       \
+                      "DG5", "DG6", "DG7", "DG8",       \
+                      "DG9", "DG10", "DG11", "DG12",    \
+                      "DG13", "DG14", "DG15", "DG16" ], \
+                STN_PHUNIT : [ 0, 0, 0 ],               \
+                STN_ANUNIT : [0],                       \
+                STN_DIGUNIT : [65535],                  \
+                STN_FNOM : 1,                           \
+                CFGCNT : 1                              \
+            },                                          \
+            {                                           \
+                STN : "random station 2",               \
+                STN_IDCODE : 7,                         \
+                STN_FORMAT : 15,                        \
+                STN_PHNAM : [ "va", "vb", "vc" ],       \
+                STN_ANNAM : ["analog1"],                \
+                STN_DGNAM :                             \
+                    [ "dg1", "dg2", "dg3", "dg4",       \
+                      "dg5", "dg6", "dg7", "dg8",       \
+                      "dg9", "dg10", "dg11", "dg12",    \
+                      "dg13", "dg14", "dg15", "dg16" ], \
+                STN_PHUNIT : [ 0, 0, 0 ],               \
+                STN_ANUNIT : [0],                       \
+                STN_DIGUNIT : [65535],                  \
+                STN_FNOM : 1,                           \
+                CFGCNT : 1                              \
+            }                                           \
+        ],                                              \
+        DATA_RATE : 30                                  \
+    }                                                   \
 })
 
 /**
@@ -140,10 +159,11 @@ extern "C"
      */
     void plugin_start(PLUGIN_HANDLE *handle)
     {
+        Logger::getLogger()->warn("Attempt to start the plugin: %u", handle);
         if (!handle)
             return;
 
-        Logger::getLogger()->info("Starting the plugin");
+        Logger::getLogger()->warn("Starting the plugin");
 
         auto *fc37118 = (FC37118 *)handle;
         fc37118->start();

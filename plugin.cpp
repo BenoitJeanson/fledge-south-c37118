@@ -30,7 +30,7 @@ using namespace std;
     MY_IDCODE : 7,                                      \
     STREAMSOURCE_IDCODE : 2,                            \
     SPLIT_STATIONS : true,                              \
-    REQUEST_CONFIG_TO_SENDER : false,                   \
+    REQUEST_CONFIG_TO_SENDER : true,                   \
     SENDER_HARD_CONFIG : {                              \
         TIME_BASE : 1000000,                            \
         STATIONS : [                                    \

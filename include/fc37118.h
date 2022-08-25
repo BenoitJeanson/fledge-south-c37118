@@ -106,7 +106,7 @@ private:
     void m_init_Pmu_Dialog();
 
     // Fledge
-    vector<Reading>* m_dataframe_to_reading();
+    vector<Reading> m_dataframe_to_reading();
     std::string m_asset;
     INGEST_CB m_ingest; // Callback function used to send data to south service
     void *m_data;       // Ingest function data

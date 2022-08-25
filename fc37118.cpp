@@ -253,8 +253,7 @@ void FC37118::m_receiveAndPushDatapoints()
         if (size > 0)
         {
             m_data_frame->unpack(buffer_rx);
-            auto readings = m_dataframe_to_reading();
-            for (auto reading : *readings)
+            for (auto reading : m_dataframe_to_reading())
                 ingest(reading);
             if (m_terminate())
             {
@@ -342,6 +341,14 @@ void FC37118::m_log_configuration()
     }
 }
 
+template <typename T>
+Datapoint* dp_create(const std::string &name, const T& value)
+{
+    auto dpv = DatapointValue(value);
+    return new Datapoint(name, dpv);
+}
+
+
 /**
  * @brief Create a composed data point object
  *
@@ -359,30 +366,31 @@ Datapoint *create_composed_data_point(const std::string &name, vector<Datapoint 
 
 Datapoint *pmu_station_to_datapoint(PMU_Station *pmu_station)
 {
-    auto dp_IDCODE = new Datapoint(DP_IDCODE, *new DatapointValue((double)(pmu_station->IDCODE_get())));
-    auto dp_STN = new Datapoint(DP_STN, *new DatapointValue(pmu_station->STN_get()));
+    auto dp_IDCODE = dp_create(DP_IDCODE, (double)(pmu_station->IDCODE_get()));
+    auto dp_STN = dp_create(DP_STN, pmu_station->STN_get());
     auto dp_id = create_composed_data_point(DP_ID, {dp_STN, dp_IDCODE}, true);
 
-    auto dp_FREQ = new Datapoint(DP_FREQ, *new DatapointValue(pmu_station->FREQ_get()));
-    auto dp_DFREQ = new Datapoint(DP_DFREQ, *new DatapointValue(pmu_station->DFREQ_get()));
+    auto dp_FREQ = dp_create(DP_DFREQ, pmu_station->FREQ_get());
+    auto dp_DFREQ = dp_create(DP_DFREQ, pmu_station->DFREQ_get());
     auto dp_frequency = create_composed_data_point(DP_FREQUENCY, {dp_FREQ, dp_DFREQ}, true);
 
-    auto phasor_dps = new vector<Datapoint *>;
+    vector<Datapoint *> phasor_dps;
     for (int k = 0; k < pmu_station->PHNMR_get(); k++)
     {
-        auto dp_mag = new Datapoint(DP_MAGNITUDE, *new DatapointValue(abs(pmu_station->PHASOR_VALUE_get(k))));
-        auto dp_angle = new Datapoint(DP_ANGLE, *new DatapointValue(arg(pmu_station->PHASOR_VALUE_get(k))));
-        phasor_dps->push_back(create_composed_data_point(pmu_station->PH_NAME_get(k), {dp_mag, dp_angle}, true));
+        auto dp_mag = dp_create(DP_MAGNITUDE, abs(pmu_station->PHASOR_VALUE_get(k)));
+        auto dp_angle = dp_create(DP_ANGLE, arg(pmu_station->PHASOR_VALUE_get(k)));
+        phasor_dps.push_back(create_composed_data_point(pmu_station->PH_NAME_get(k), {dp_mag, dp_angle}, true));
     }
-    auto dp_phasors = new Datapoint(DP_PHASORS, *new DatapointValue(phasor_dps, true));
+    // auto dp_phasors = new Datapoint(DP_PHASORS, *new DatapointValue(phasor_dps, true));
+    auto dp_phasors = create_composed_data_point(DP_PHASORS, phasor_dps, true);
 
-    auto analog_dps = new vector<Datapoint *>;
+    vector<Datapoint *> analog_dps;
     for (int k = 0; k < pmu_station->ANNMR_get(); k++)
     {
-        analog_dps->push_back(new Datapoint(pmu_station->AN_NAME_get(k),
-                                            *new DatapointValue(pmu_station->ANALOG_VALUE_get(k))));
+        analog_dps.push_back(dp_create(pmu_station->AN_NAME_get(k),pmu_station->ANALOG_VALUE_get(k)));
     }
-    auto dp_analogs = new Datapoint(DP_ANALOGS, *new DatapointValue(analog_dps, true));
+    // auto dp_analogs = new Datapoint(DP_ANALOGS, *new DatapointValue(analog_dps, true));
+    auto dp_analogs = create_composed_data_point(DP_ANALOGS, analog_dps, true);
 
     return create_composed_data_point(READING_PREFIX + to_string(pmu_station->IDCODE_get()), {dp_id, dp_frequency, dp_phasors, dp_analogs}, true);
 }
@@ -393,35 +401,35 @@ Datapoint *pmu_station_to_datapoint(PMU_Station *pmu_station)
  * @return Reading
  */
 
-vector<Reading> *FC37118::m_dataframe_to_reading()
+vector<Reading> FC37118::m_dataframe_to_reading()
 {
-    auto readings = new vector<Reading>;
-    auto dp_SOC = new Datapoint(DP_SOC, *new DatapointValue((long)(m_data_frame->SOC_get())));
-    auto dp_FRACSEC = new Datapoint(DP_FRACSEC, *new DatapointValue((long)(m_data_frame->FRACSEC_get())));
-    auto dp_TIME_BASE = new Datapoint(DP_TIME_BASE, *new DatapointValue((long)(m_config_frame->TIME_BASE_get())));
+    vector<Reading> readings;
+    auto dp_SOC = dp_create(DP_SOC,(long)(m_data_frame->SOC_get()));
+    auto dp_FRACSEC = dp_create(DP_FRACSEC,(long)(m_data_frame->FRACSEC_get()));
+    auto dp_TIME_BASE = dp_create(DP_TIME_BASE, (long)(m_config_frame->TIME_BASE_get()));
     auto dp_time = create_composed_data_point(DP_TIMESTAMP, {dp_SOC, dp_FRACSEC, dp_TIME_BASE}, true);
 
-    auto pmu_dps = new vector<Datapoint *>;
+    vector<Datapoint *> pmu_dps;
     for (auto pmu_station : m_config_frame->pmu_station_list)
     {
         auto dp_pmu_station = pmu_station_to_datapoint(pmu_station);
         if (m_conf->is_split_stations())
         {
             auto dp_reading = create_composed_data_point("Single_PMU", {dp_time, dp_pmu_station}, true);
-            readings->push_back(
+            readings.push_back(
                 Reading(to_string(m_config_frame->IDCODE_get()) + "-" + to_string(pmu_station->IDCODE_get()),
                         dp_reading));
         }
         else
-            pmu_dps->push_back(dp_pmu_station);
+            pmu_dps.push_back(dp_pmu_station);
     }
 
-    auto dp_pmu_stations = new Datapoint(DP_PMUSTATIONS, *new DatapointValue(pmu_dps, true));
+    auto dp_pmu_stations = create_composed_data_point(DP_PMUSTATIONS, pmu_dps, true);
 
     if (!m_conf->is_split_stations())
     {
         auto dp_reading = create_composed_data_point("Multi_PMU", {dp_time, dp_pmu_stations}, true);
-        readings->push_back(Reading(to_string(m_config_frame->IDCODE_get()), dp_reading));
+        readings.push_back(Reading(to_string(m_config_frame->IDCODE_get()), dp_reading));
     }
     return readings;
 }

@@ -34,7 +34,7 @@
 
 #define C37118_CMD_TURNOFF_TX 0x01
 #define C37118_CMD_TURNON_TX 0x02
-#define C37118_CMD_SEND_DATA 0x03
+#define C37118_CMD_SEND_HDR 0x03
 #define C37118_CMD_SEND_CONFIGURATION_1 0x04
 #define C37118_CMD_SEND_CONFIGURATION_2 0x05
 
@@ -73,9 +73,7 @@ public:
     FC37118();
     ~FC37118();
 
-    void set_asset_name(const std::string &asset) { m_asset = asset; }
     bool set_conf(const std::string &conf);
-    std::string get_asset_name() { return m_asset; }
     void start();
     void stop();
     void register_ingest(void *data, INGEST_CB cb);
@@ -102,14 +100,14 @@ private:
     CONFIG_Frame *m_config_frame;
     DATA_Frame *m_data_frame;
     void m_init_c37118();
-    bool m_send_cmd(int cmd);
+    bool m_send_cmd(unsigned short cmd);
     void m_init_Pmu_Dialog();
 
     // Fledge
     vector<Reading> m_dataframe_to_reading();
-    std::string m_asset;
     INGEST_CB m_ingest; // Callback function used to send data to south service
     void *m_data;       // Ingest function data
+    bool m_init_receiving();
     void m_receiveAndPushDatapoints();
 };
 #endif

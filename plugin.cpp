@@ -30,7 +30,7 @@ using namespace std;
     MY_IDCODE : 7,                                      \
     STREAMSOURCE_IDCODE : 2,                            \
     SPLIT_STATIONS : true,                              \
-    REQUEST_CONFIG_TO_SENDER : true,                   \
+    REQUEST_CONFIG_TO_SENDER : true,                    \
     SENDER_HARD_CONFIG : {                              \
         TIME_BASE : 1000000,                            \
         STATIONS : [                                    \
@@ -84,16 +84,6 @@ const static char *default_config = QUOTE({
         "default" : PLUGIN_NAME,
         "readonly" : "true"
     },
-
-    "asset" : {
-        "description" : "Asset name",
-        "type" : "string",
-        "default" : "C37.118",
-        "order" : "1",
-        "displayName" : "C37.118",
-        "mandatory" : "true"
-    },
-
     PMU_CONF_LABEL : {
         "description" : "PMU configuration",
         "type" : "JSON",
@@ -140,17 +130,6 @@ extern "C"
         FC37118 *fc37118 = new FC37118();
         if (!fc37118->set_conf(config->getValue(PMU_CONF_LABEL)))
             return nullptr;
-
-        if (config->itemExists("asset"))
-        {
-            fc37118->set_asset_name(config->getValue("asset"));
-        }
-        else
-        {
-            fc37118->set_asset_name("C37118");
-        }
-        Logger::getLogger()->info("m_assetName set to %s", fc37118->get_asset_name());
-
         return (PLUGIN_HANDLE)fc37118;
     }
 
@@ -159,11 +138,8 @@ extern "C"
      */
     void plugin_start(PLUGIN_HANDLE *handle)
     {
-        Logger::getLogger()->warn("Attempt to start the plugin: %u", handle);
         if (!handle)
             return;
-
-        Logger::getLogger()->warn("Starting the plugin");
 
         auto *fc37118 = (FC37118 *)handle;
         fc37118->start();
@@ -195,8 +171,6 @@ extern "C"
     {
         ConfigCategory conf("dht", newConfig);
         auto *fc37118 = (FC37118 *)*handle;
-        if (conf.itemExists("asset"))
-            fc37118->set_asset_name(conf.getValue("asset"));
 
         if (conf.itemExists(PMU_CONF_LABEL))
         {
@@ -218,7 +192,10 @@ extern "C"
      */
     void plugin_shutdown(PLUGIN_HANDLE *handle)
     {
+        if (!handle)
+            return;
+
         auto *fc37118 = (FC37118 *)handle;
-        delete fc37118;
+        fc37118->stop();
     }
 };

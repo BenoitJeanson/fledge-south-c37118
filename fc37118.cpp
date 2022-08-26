@@ -37,7 +37,7 @@ void FC37118::start()
 {
     Logger::getLogger()->setMinLevel(DEBUG_LEVEL);
 
-    Logger::getLogger()->info("C37118 start");
+    Logger::getLogger()->info("Start");
     m_receiving_thread = new std::thread(&FC37118::m_receiveAndPushDatapoints, this);
     m_is_running = true;
 }
@@ -50,8 +50,9 @@ void FC37118::stop()
     {
         Logger::getLogger()->info("waiting receiving thread to stop");
         m_receiving_thread->join();
+        delete m_receiving_thread;
     }
-    Logger::getLogger()->info("plugin stoped");
+    Logger::getLogger()->info("Stoped");
 }
 
 bool FC37118::m_terminate()
@@ -66,7 +67,6 @@ void FC37118::m_init_c37118()
     m_config_frame = new CONFIG_Frame();
     m_data_frame = new DATA_Frame(m_config_frame);
 }
-
 
 bool FC37118::set_conf(const std::string &conf)
 {
@@ -84,7 +84,7 @@ bool FC37118::set_conf(const std::string &conf)
         Logger::getLogger()->error("Unable to ingest Plugin configuration");
         return false;
     }
-    Logger::getLogger()->info("Plugin configuration successfully ingested");
+    Logger::getLogger()->debug("Plugin configuration successfully ingested");
 
     if (m_conf->is_request_config_to_pmu())
     {
@@ -105,7 +105,7 @@ bool FC37118::set_conf(const std::string &conf)
     m_serv_addr.sin_port = htons(m_conf->get_pmu_port());
     if (was_running)
     {
-        Logger::getLogger()->info("restarting");
+        Logger::getLogger()->info("Restarting");
         start();
     }
     return true;
@@ -151,23 +151,13 @@ bool FC37118::m_connect()
  * @return true - the command was successfully sent
  * @return false - the terminate signal was received
  */
-bool FC37118::m_send_cmd(int cmd)
+bool FC37118::m_send_cmd(unsigned short cmd)
 {
     unsigned char *buffer_tx;
     m_cmd.CMD_set(cmd);
+    m_cmd.FRACSEC_set(0);
     unsigned short size = m_cmd.pack(&buffer_tx);
-    int n;
-    do
-    {
-        n = write(m_sockfd, buffer_tx, size);
-        if (n < 0)
-        {
-            if (!m_connect())
-            {
-                return false;
-            };
-        }
-    } while (n < 0 && !m_terminate());
+    int n = write(m_sockfd, buffer_tx, size);
     return n > 0;
 }
 
@@ -179,18 +169,16 @@ void FC37118::m_init_Pmu_Dialog()
 {
     unsigned char *buffer_tx, buffer_rx[BUFFER_SIZE];
 
-    Logger::getLogger()->debug("Start connection process");
-
-    if (!m_connect())
-    {
-        return;
-    }
+    Logger::getLogger()->debug("Start PMU dialog");
 
     m_cmd.IDCODE_set(m_conf->get_my_IDCODE());
 
+    Logger::getLogger()->debug("Send HDR");
+
     // Request & receive Header Frame
-    if (m_send_cmd(C37118_CMD_SEND_DATA))
+    if (m_send_cmd(C37118_CMD_SEND_HDR))
     {
+        Logger::getLogger()->debug("HDR sent");
         int size = read(m_sockfd, buffer_rx, BUFFER_SIZE);
         if (size > 0)
         {
@@ -210,7 +198,7 @@ void FC37118::m_init_Pmu_Dialog()
     {
         int size = read(m_sockfd, buffer_rx, BUFFER_SIZE);
         if (size > 0)
-        {   
+        {
             m_init_c37118();
             m_config_frame->unpack(buffer_rx);
             m_c37118_configuration_ready = true;
@@ -224,6 +212,28 @@ void FC37118::m_init_Pmu_Dialog()
     }
 }
 
+bool FC37118::m_init_receiving()
+{
+    if (!m_connect())
+    {
+        return false;
+    }
+
+    if (!m_c37118_configuration_ready)
+    {
+        m_init_Pmu_Dialog();
+    }
+
+    if (!m_c37118_configuration_ready || m_terminate())
+    {
+        return false;
+    }
+
+    m_log_configuration();
+
+    return m_send_cmd(C37118_CMD_TURNON_TX);
+}
+
 /**
  * @brief Receive the real time data from the c37.118 equipment. Leaves once  Wait for the configuration to be ready before requesting data.
  */
@@ -233,21 +243,14 @@ void FC37118::m_receiveAndPushDatapoints()
     int size;
     int k;
 
-    if (!m_c37118_configuration_ready)
+    if (!m_init_receiving())
     {
-        m_init_Pmu_Dialog();
-    }
-
-    if (!m_c37118_configuration_ready || m_terminate())
-    {
+        Logger::getLogger()->error("Could not initiate real time reception");
         return;
     }
 
-    m_log_configuration();
-
-    Logger::getLogger()->debug("configuration OK, ready to receive real time data");
-    m_send_cmd(C37118_CMD_TURNON_TX);
-    do
+    Logger::getLogger()->debug("Configuration OK, ready to receive real time data");
+    while (!m_terminate())
     {
         size = read(m_sockfd, buffer_rx, BUFFER_SIZE);
         if (size > 0)
@@ -255,21 +258,15 @@ void FC37118::m_receiveAndPushDatapoints()
             m_data_frame->unpack(buffer_rx);
             for (auto reading : m_dataframe_to_reading())
                 ingest(reading);
-            if (m_terminate())
-            {
-                break;
-            }
         }
         else
         {
             Logger::getLogger()->info("No connexion with PMU");
-            if (m_connect())
-            {
-                m_send_cmd(C37118_CMD_TURNON_TX); // after a deconnection, shall request data
-            };
+            m_c37118_configuration_ready = !m_conf->is_request_config_to_pmu(); // maybe the conf of the sender is changing while disconnected
+            m_init_receiving();
         }
-    } while (!m_terminate());
-    Logger::getLogger()->debug("terminate signal received: stop receiving");
+    }
+    Logger::getLogger()->debug("Terminate signal received: stop receiving");
 }
 
 /**
@@ -342,57 +339,54 @@ void FC37118::m_log_configuration()
 }
 
 template <typename T>
-Datapoint* dp_create(const std::string &name, const T& value)
+Datapoint *create_dp(const std::string &name, const T &value)
 {
     auto dpv = DatapointValue(value);
     return new Datapoint(name, dpv);
 }
 
-
 /**
  * @brief Create a composed data point object
  *
  * @param name
- * @param dps
- * @param is_dict
+ * @param dps a Datapoint vector
+ * @param is_dict true! is a dict, false: is a list
  * @return Datapoint*
  */
-Datapoint *create_composed_data_point(const std::string &name, vector<Datapoint *> dps, bool is_dict)
+Datapoint *create_dp(const std::string &name, vector<Datapoint *> dps, bool is_dict)
 {
-    // auto my_dps = new vector<Datapoint *>;
     auto my_dps = &dps;
-    return new Datapoint(name, *new DatapointValue(my_dps, is_dict));
+    auto dpv = new DatapointValue(my_dps, is_dict);
+    return new Datapoint(name, *dpv);
 }
 
 Datapoint *pmu_station_to_datapoint(PMU_Station *pmu_station)
 {
-    auto dp_IDCODE = dp_create(DP_IDCODE, (double)(pmu_station->IDCODE_get()));
-    auto dp_STN = dp_create(DP_STN, pmu_station->STN_get());
-    auto dp_id = create_composed_data_point(DP_ID, {dp_STN, dp_IDCODE}, true);
+    auto dp_IDCODE = create_dp(DP_IDCODE, (double)(pmu_station->IDCODE_get()));
+    auto dp_STN = create_dp(DP_STN, pmu_station->STN_get());
+    auto dp_id = create_dp(DP_ID, {dp_STN, dp_IDCODE}, true);
 
-    auto dp_FREQ = dp_create(DP_DFREQ, pmu_station->FREQ_get());
-    auto dp_DFREQ = dp_create(DP_DFREQ, pmu_station->DFREQ_get());
-    auto dp_frequency = create_composed_data_point(DP_FREQUENCY, {dp_FREQ, dp_DFREQ}, true);
+    auto dp_FREQ = create_dp(DP_DFREQ, pmu_station->FREQ_get());
+    auto dp_DFREQ = create_dp(DP_DFREQ, pmu_station->DFREQ_get());
+    auto dp_frequency = create_dp(DP_FREQUENCY, {dp_FREQ, dp_DFREQ}, true);
 
     vector<Datapoint *> phasor_dps;
     for (int k = 0; k < pmu_station->PHNMR_get(); k++)
     {
-        auto dp_mag = dp_create(DP_MAGNITUDE, abs(pmu_station->PHASOR_VALUE_get(k)));
-        auto dp_angle = dp_create(DP_ANGLE, arg(pmu_station->PHASOR_VALUE_get(k)));
-        phasor_dps.push_back(create_composed_data_point(pmu_station->PH_NAME_get(k), {dp_mag, dp_angle}, true));
+        auto dp_mag = create_dp(DP_MAGNITUDE, abs(pmu_station->PHASOR_VALUE_get(k)));
+        auto dp_angle = create_dp(DP_ANGLE, arg(pmu_station->PHASOR_VALUE_get(k)));
+        phasor_dps.push_back(create_dp(pmu_station->PH_NAME_get(k), {dp_mag, dp_angle}, true));
     }
-    // auto dp_phasors = new Datapoint(DP_PHASORS, *new DatapointValue(phasor_dps, true));
-    auto dp_phasors = create_composed_data_point(DP_PHASORS, phasor_dps, true);
+    auto dp_phasors = create_dp(DP_PHASORS, phasor_dps, true);
 
     vector<Datapoint *> analog_dps;
     for (int k = 0; k < pmu_station->ANNMR_get(); k++)
     {
-        analog_dps.push_back(dp_create(pmu_station->AN_NAME_get(k),pmu_station->ANALOG_VALUE_get(k)));
+        analog_dps.push_back(create_dp(pmu_station->AN_NAME_get(k), pmu_station->ANALOG_VALUE_get(k)));
     }
-    // auto dp_analogs = new Datapoint(DP_ANALOGS, *new DatapointValue(analog_dps, true));
-    auto dp_analogs = create_composed_data_point(DP_ANALOGS, analog_dps, true);
+    auto dp_analogs = create_dp(DP_ANALOGS, analog_dps, true);
 
-    return create_composed_data_point(READING_PREFIX + to_string(pmu_station->IDCODE_get()), {dp_id, dp_frequency, dp_phasors, dp_analogs}, true);
+    return create_dp(READING_PREFIX + to_string(pmu_station->IDCODE_get()), {dp_id, dp_frequency, dp_phasors, dp_analogs}, true);
 }
 
 /**
@@ -404,10 +398,10 @@ Datapoint *pmu_station_to_datapoint(PMU_Station *pmu_station)
 vector<Reading> FC37118::m_dataframe_to_reading()
 {
     vector<Reading> readings;
-    auto dp_SOC = dp_create(DP_SOC,(long)(m_data_frame->SOC_get()));
-    auto dp_FRACSEC = dp_create(DP_FRACSEC,(long)(m_data_frame->FRACSEC_get()));
-    auto dp_TIME_BASE = dp_create(DP_TIME_BASE, (long)(m_config_frame->TIME_BASE_get()));
-    auto dp_time = create_composed_data_point(DP_TIMESTAMP, {dp_SOC, dp_FRACSEC, dp_TIME_BASE}, true);
+    auto dp_SOC = create_dp(DP_SOC, (long)(m_data_frame->SOC_get()));
+    auto dp_FRACSEC = create_dp(DP_FRACSEC, (long)(m_data_frame->FRACSEC_get()));
+    auto dp_TIME_BASE = create_dp(DP_TIME_BASE, (long)(m_config_frame->TIME_BASE_get()));
+    auto dp_time = create_dp(DP_TIMESTAMP, {dp_SOC, dp_FRACSEC, dp_TIME_BASE}, true);
 
     vector<Datapoint *> pmu_dps;
     for (auto pmu_station : m_config_frame->pmu_station_list)
@@ -415,7 +409,7 @@ vector<Reading> FC37118::m_dataframe_to_reading()
         auto dp_pmu_station = pmu_station_to_datapoint(pmu_station);
         if (m_conf->is_split_stations())
         {
-            auto dp_reading = create_composed_data_point("Single_PMU", {dp_time, dp_pmu_station}, true);
+            auto dp_reading = create_dp("Single_PMU", {dp_time, dp_pmu_station}, true);
             readings.push_back(
                 Reading(to_string(m_config_frame->IDCODE_get()) + "-" + to_string(pmu_station->IDCODE_get()),
                         dp_reading));
@@ -424,11 +418,11 @@ vector<Reading> FC37118::m_dataframe_to_reading()
             pmu_dps.push_back(dp_pmu_station);
     }
 
-    auto dp_pmu_stations = create_composed_data_point(DP_PMUSTATIONS, pmu_dps, true);
+    auto dp_pmu_stations = create_dp(DP_PMUSTATIONS, pmu_dps, true);
 
     if (!m_conf->is_split_stations())
     {
-        auto dp_reading = create_composed_data_point("Multi_PMU", {dp_time, dp_pmu_stations}, true);
+        auto dp_reading = create_dp("Multi_PMU", {dp_time, dp_pmu_stations}, true);
         readings.push_back(Reading(to_string(m_config_frame->IDCODE_get()), dp_reading));
     }
     return readings;

@@ -156,7 +156,7 @@ bool FC37118::m_send_cmd(unsigned short cmd)
     unsigned char *buffer_tx;
     m_cmd.CMD_set(cmd);
     m_cmd.SOC_set((unsigned long)time(NULL));
-    m_cmd.FRACSEC_set(0);
+    m_cmd.FRACSEC_set(0); // no need to be finer than the second for commands
     unsigned short size = m_cmd.pack(&buffer_tx);
     int n = write(m_sockfd, buffer_tx, size);
     return n > 0;

@@ -117,7 +117,7 @@ void FC37118Conf::import_json(const std::string &json_config)
 
 void FC37118Conf::to_conf_frame(CONFIG_Frame *conf_frame)
 {
-    conf_frame->IDCODE_set(m_my_IDCODE);
+    conf_frame->IDCODE_set(m_pmu_IDCODE);
     conf_frame->TIME_BASE_set(m_time_base);
     //    conf_frame->NUM_PMU_set(m_num_pmu);
     conf_frame->DATA_RATE_set(m_data_rate);

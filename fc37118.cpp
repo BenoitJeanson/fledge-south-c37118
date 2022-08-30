@@ -23,7 +23,7 @@ FC37118::FC37118() : m_conf(nullptr),
 
 FC37118::~FC37118()
 {
-    Logger::getLogger()->info("shutting down ********************************************");
+    Logger::getLogger()->info("shutting down");
     if (m_is_running)
     {
         stop();
@@ -172,6 +172,8 @@ void FC37118::m_init_Pmu_Dialog()
 
     Logger::getLogger()->debug("Start PMU dialog");
 
+    m_c37118_configuration_ready = false;
+
     m_cmd.IDCODE_set(m_conf->get_my_IDCODE());
 
     Logger::getLogger()->debug("Send HDR");
@@ -220,7 +222,7 @@ bool FC37118::m_init_receiving()
         return false;
     }
 
-    if (!m_c37118_configuration_ready)
+    if (m_conf->is_request_config_to_pmu())
     {
         m_init_Pmu_Dialog();
     }
@@ -243,16 +245,19 @@ void FC37118::m_receiveAndPushDatapoints()
     unsigned char buffer_rx[BUFFER_SIZE];
     int size;
     int k;
+    bool init_ok = false;
 
-    if (!m_init_receiving())
-    {
-        Logger::getLogger()->error("Could not initiate real time reception");
-        return;
-    }
-
-    Logger::getLogger()->debug("Configuration OK, ready to receive real time data");
     while (!m_terminate())
     {
+        while (!init_ok && !m_terminate())
+        {
+            init_ok = m_init_receiving();
+            if (init_ok)
+                Logger::getLogger()->debug("Connection and configuration OK, ready to receive real time data");
+        }
+        if (m_terminate())
+            break;
+
         size = read(m_sockfd, buffer_rx, BUFFER_SIZE);
         if (size > 0)
         {
@@ -262,9 +267,8 @@ void FC37118::m_receiveAndPushDatapoints()
         }
         else
         {
-            Logger::getLogger()->info("No connexion with PMU");
-            m_c37118_configuration_ready = !m_conf->is_request_config_to_pmu(); // maybe the conf of the sender is changing while disconnected
-            m_init_receiving();
+            Logger::getLogger()->info("Connection lost, reconnect");
+            init_ok = false;
         }
     }
     Logger::getLogger()->debug("Terminate signal received: stop receiving");

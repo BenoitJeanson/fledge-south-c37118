@@ -61,8 +61,6 @@
 
 #define DP_ANALOGS "analogs"
 
-
-
 typedef void (*INGEST_CB)(void *, Reading);
 
 class FC37118
@@ -104,7 +102,10 @@ private:
     void m_init_Pmu_Dialog();
 
     // Fledge
-    vector<Reading> m_dataframe_to_reading();
+    std::vector<Reading *> m_dataframe_to_reading();
+
+    Datapoint *m_pmu_station_to_datapoint(PMU_Station *pmu_station);
+
     INGEST_CB m_ingest; // Callback function used to send data to south service
     void *m_data;       // Ingest function data
     bool m_init_receiving();

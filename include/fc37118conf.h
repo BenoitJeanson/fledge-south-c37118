@@ -23,6 +23,7 @@
 #define RECONNECTION_DELAY "RECONNECTION_DELAY"
 #define MY_IDCODE "MY_IDCODE"
 #define STREAMSOURCE_IDCODE "STREAMSOURCE_IDCODE"
+#define STN_IDCODES_FILTER "STATION_IDCODES_FILTER"
 #define SPLIT_STATIONS "SPLIT_STATIONS"
 
 #define REQUEST_CONFIG_TO_SENDER "REQUEST_CONFIG_TO_SENDER"
@@ -88,6 +89,7 @@ public:
     uint get_pmu_IDCODE() { return m_pmu_IDCODE; }
     uint get_my_IDCODE() { return m_my_IDCODE; }
     uint get_reconnection_delay() { return m_reconnection_delay; }
+    std::vector<uint> get_stn_idcodes_filter() {return m_stn_idcodes_filter;}
 
     /**
      * @brief if true, the plugin will request the configuration to the PMU
@@ -104,6 +106,7 @@ public:
 private:
     bool m_is_complete;
     bool m_is_split_stations;
+    vector<unsigned int> m_stn_idcodes_filter;
 
     // connection parameters
     std::string m_pmu_IP_addr;

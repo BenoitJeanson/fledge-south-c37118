@@ -35,7 +35,6 @@ C37.118 enables to retrieve the configuration of the sender, that's the easiest 
 The plugin was tested using `randomPMU.py` example of [pypmu](https://github.com/iicsys/pypmu).
 
 ## TODO
-* Implement hard configuration for multiple sources
 * Filter should be implemented in this plugin based on source IDCODE to choose
 * Filter to FledgePower pivot format is to be developed. Especially an analysis is ongoing to ensure the timestamp definition is compliant with IEC-61850.
 * Implement UDP, and TLS

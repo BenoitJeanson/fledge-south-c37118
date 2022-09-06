@@ -70,25 +70,25 @@ void FC37118Conf::import_json(const std::string &json_config)
     m_is_complete = false;
 
     bool is_complete = true;
-    rapidjson::Document *doc = new rapidjson::Document;
+    rapidjson::Document doc;
 
-    doc->Parse(const_cast<char *>(json_config.c_str()));
-    if (!doc->IsObject())
+    doc.Parse(const_cast<char *>(json_config.c_str()));
+    if (!doc.IsObject())
         return;
 
-    is_complete &= retrieve(doc, IP_ADDR, &m_pmu_IP_addr);
-    is_complete &= retrieve(doc, IP_PORT, &m_pmu_IP_port);
-    is_complete &= retrieve(doc, RECONNECTION_DELAY, &m_reconnection_delay);
-    is_complete &= retrieve(doc, MY_IDCODE, &m_my_IDCODE);
+    is_complete &= retrieve(&doc, IP_ADDR, &m_pmu_IP_addr);
+    is_complete &= retrieve(&doc, IP_PORT, &m_pmu_IP_port);
+    is_complete &= retrieve(&doc, RECONNECTION_DELAY, &m_reconnection_delay);
+    is_complete &= retrieve(&doc, MY_IDCODE, &m_my_IDCODE);
 
-    is_complete &= retrieve(doc, STREAMSOURCE_IDCODE, &m_pmu_IDCODE);
-    is_complete &= retrieve(doc, SPLIT_STATIONS, &m_is_split_stations);
-    is_complete &= retrieve(doc, REQUEST_CONFIG_TO_SENDER, &m_request_config_to_pmu);
+    is_complete &= retrieve(&doc, STREAMSOURCE_IDCODE, &m_pmu_IDCODE);
+    is_complete &= retrieve(&doc, SPLIT_STATIONS, &m_is_split_stations);
+    is_complete &= retrieve(&doc, REQUEST_CONFIG_TO_SENDER, &m_request_config_to_pmu);
 
     if (!m_request_config_to_pmu)
     {
         rapidjson::Value *pmu_hard_conf;
-        if (!retrieve(doc, SENDER_HARD_CONFIG, pmu_hard_conf))
+        if (!retrieve(&doc, SENDER_HARD_CONFIG, pmu_hard_conf))
             return;
         if (!pmu_hard_conf->IsObject())
             return;

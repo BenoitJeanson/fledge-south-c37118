@@ -30,6 +30,7 @@ using namespace std;
     MY_IDCODE : 7,                                      \
     STREAMSOURCE_IDCODE : 2,                            \
     SPLIT_STATIONS : true,                              \
+    STN_IDCODES_FILTER : [7],                           \
     REQUEST_CONFIG_TO_SENDER : true,                    \
     SENDER_HARD_CONFIG : {                              \
         TIME_BASE : 1000000,                            \
@@ -197,5 +198,6 @@ extern "C"
 
         auto *fc37118 = (FC37118 *)handle;
         fc37118->stop();
+        delete fc37118;
     }
 };

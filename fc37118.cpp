@@ -38,8 +38,8 @@ void FC37118::start()
     Logger::getLogger()->setMinLevel(DEBUG_LEVEL);
 
     Logger::getLogger()->info("Start");
-    m_receiving_thread = new std::thread(&FC37118::m_receiveAndPushDatapoints, this);
     m_is_running = true;
+    m_receiving_thread = new std::thread(&FC37118::m_receiveAndPushDatapoints, this);
 }
 
 void FC37118::stop()
@@ -52,6 +52,7 @@ void FC37118::stop()
         m_receiving_thread->join();
         delete m_receiving_thread;
     }
+    sleep(2);
     Logger::getLogger()->info("Stoped");
 }
 
@@ -263,7 +264,10 @@ void FC37118::m_receiveAndPushDatapoints()
         {
             m_data_frame->unpack(buffer_rx);
             for (auto reading : m_dataframe_to_reading())
-                ingest(reading);
+            {
+                ingest(*reading);
+                delete reading;
+            }
         }
         else
         {
@@ -302,6 +306,8 @@ void FC37118::ingest(Reading &reading)
 void FC37118::m_log_configuration()
 {
     Logger::getLogger()->debug("Configuration Log:");
+
+    Logger::getLogger()->debug("  STREAMSOURCE_IDCODE: %u", m_config_frame->IDCODE_get());
 
     Logger::getLogger()->debug("  TIME_BASE: %u", m_config_frame->TIME_BASE_get());
     Logger::getLogger()->debug("  NUM_PMU: %u", m_config_frame->NUM_PMU_get());
@@ -355,43 +361,44 @@ Datapoint *create_dp(const std::string &name, const T &value)
  *
  * @param name
  * @param dps a Datapoint vector
- * @param is_dict true! is a dict, false: is a list
+ * @param is_dict true: is a dict, false: is a list
  * @return Datapoint*
  */
-Datapoint *create_dp(const std::string &name, vector<Datapoint *> dps, bool is_dict)
+Datapoint *create_dp_list(const std::string &name, std::vector<Datapoint *> *dps, bool is_dict)
 {
-    auto my_dps = &dps;
-    auto dpv = new DatapointValue(my_dps, is_dict);
-    return new Datapoint(name, *dpv);
+    auto dpv = DatapointValue(dps, is_dict);
+
+    return new Datapoint(name, dpv);
 }
 
-Datapoint *pmu_station_to_datapoint(PMU_Station *pmu_station)
+Datapoint *FC37118::m_pmu_station_to_datapoint(PMU_Station *pmu_station)
 {
     auto dp_IDCODE = create_dp(DP_IDCODE, (double)(pmu_station->IDCODE_get()));
     auto dp_STN = create_dp(DP_STN, pmu_station->STN_get());
-    auto dp_id = create_dp(DP_ID, {dp_STN, dp_IDCODE}, true);
+    auto dp_id = create_dp_list(DP_ID, new std::vector<Datapoint *>({dp_STN, dp_IDCODE}), true);
 
-    auto dp_FREQ = create_dp(DP_DFREQ, pmu_station->FREQ_get());
+    auto dp_FREQ = create_dp(DP_FREQ, pmu_station->FREQ_get());
     auto dp_DFREQ = create_dp(DP_DFREQ, pmu_station->DFREQ_get());
-    auto dp_frequency = create_dp(DP_FREQUENCY, {dp_FREQ, dp_DFREQ}, true);
+    auto dp_frequency = create_dp_list(DP_FREQUENCY, new std::vector<Datapoint *>({dp_FREQ, dp_DFREQ}), true);
 
-    vector<Datapoint *> phasor_dps;
+    auto phasor_dps = new std::vector<Datapoint *>;
     for (int k = 0; k < pmu_station->PHNMR_get(); k++)
     {
         auto dp_mag = create_dp(DP_MAGNITUDE, abs(pmu_station->PHASOR_VALUE_get(k)));
         auto dp_angle = create_dp(DP_ANGLE, arg(pmu_station->PHASOR_VALUE_get(k)));
-        phasor_dps.push_back(create_dp(pmu_station->PH_NAME_get(k), {dp_mag, dp_angle}, true));
+        auto dp_val = create_dp_list(pmu_station->PH_NAME_get(k), new std::vector<Datapoint *>({dp_mag, dp_angle}), true);
+        phasor_dps->push_back(dp_val);
     }
-    auto dp_phasors = create_dp(DP_PHASORS, phasor_dps, true);
+    auto dp_phasors = create_dp_list(DP_PHASORS, phasor_dps, true);
 
-    vector<Datapoint *> analog_dps;
+    auto analog_dps = new std::vector<Datapoint *>;
     for (int k = 0; k < pmu_station->ANNMR_get(); k++)
     {
-        analog_dps.push_back(create_dp(pmu_station->AN_NAME_get(k), pmu_station->ANALOG_VALUE_get(k)));
+        auto dp_an = create_dp(pmu_station->AN_NAME_get(k), pmu_station->ANALOG_VALUE_get(k));
+        analog_dps->push_back(dp_an);
     }
-    auto dp_analogs = create_dp(DP_ANALOGS, analog_dps, true);
-
-    return create_dp(READING_PREFIX + to_string(pmu_station->IDCODE_get()), {dp_id, dp_frequency, dp_phasors, dp_analogs}, true);
+    auto dp_analogs = create_dp_list(DP_ANALOGS, analog_dps, true);
+    return create_dp_list(READING_PREFIX + to_string(pmu_station->IDCODE_get()), new std::vector<Datapoint *>({dp_id, dp_frequency, dp_phasors, dp_analogs}), true);
 }
 
 /**
@@ -400,35 +407,40 @@ Datapoint *pmu_station_to_datapoint(PMU_Station *pmu_station)
  * @return Reading
  */
 
-vector<Reading> FC37118::m_dataframe_to_reading()
+vector<Reading *> FC37118::m_dataframe_to_reading()
 {
-    vector<Reading> readings;
+    std::vector<Reading *> readings;
     auto dp_SOC = create_dp(DP_SOC, (long)(m_data_frame->SOC_get()));
     auto dp_FRACSEC = create_dp(DP_FRACSEC, (long)(m_data_frame->FRACSEC_get()));
     auto dp_TIME_BASE = create_dp(DP_TIME_BASE, (long)(m_config_frame->TIME_BASE_get()));
-    auto dp_time = create_dp(DP_TIMESTAMP, {dp_SOC, dp_FRACSEC, dp_TIME_BASE}, true);
+    auto dp_time = create_dp_list(DP_TIMESTAMP, new std::vector<Datapoint *>({dp_SOC, dp_FRACSEC, dp_TIME_BASE}), true);
 
-    vector<Datapoint *> pmu_dps;
+    auto pmu_dps = new std::vector<Datapoint *>;
     for (auto pmu_station : m_config_frame->pmu_station_list)
     {
-        auto dp_pmu_station = pmu_station_to_datapoint(pmu_station);
+        // if (m_conf->get_stn_idcodes_filter()o)
+        auto dp_pmu_station = m_pmu_station_to_datapoint(pmu_station);
         if (m_conf->is_split_stations())
         {
-            auto dp_reading = create_dp("Single_PMU", {dp_time, dp_pmu_station}, true);
+            auto dp_reading = create_dp_list("Single_PMU", new std::vector<Datapoint *>({new Datapoint(*dp_time), dp_pmu_station}), true);
             readings.push_back(
-                Reading(to_string(m_config_frame->IDCODE_get()) + "-" + to_string(pmu_station->IDCODE_get()),
-                        dp_reading));
+                new Reading(to_string(m_config_frame->IDCODE_get()) + "-" + to_string(pmu_station->IDCODE_get()),
+                            dp_reading));
         }
         else
-            pmu_dps.push_back(dp_pmu_station);
+            pmu_dps->push_back(dp_pmu_station);
     }
-
-    auto dp_pmu_stations = create_dp(DP_PMUSTATIONS, pmu_dps, true);
 
     if (!m_conf->is_split_stations())
     {
-        auto dp_reading = create_dp("Multi_PMU", {dp_time, dp_pmu_stations}, true);
-        readings.push_back(Reading(to_string(m_config_frame->IDCODE_get()), dp_reading));
+        auto dp_pmu_stations = create_dp_list(DP_PMUSTATIONS, pmu_dps, true);
+        auto dp_reading = create_dp_list("Multi_PMU", new std::vector<Datapoint *>({dp_time, dp_pmu_stations}), true);
+        readings.push_back(new Reading(to_string(m_config_frame->IDCODE_get()), dp_reading));
+    }
+    else
+    {
+        delete dp_time;
+        delete pmu_dps;
     }
     return readings;
 }

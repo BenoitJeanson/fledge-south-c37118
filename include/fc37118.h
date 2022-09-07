@@ -18,6 +18,9 @@
 #include <chrono>
 #include <future>
 #include <string>
+#include <vector>
+#include <algorithm>
+
 
 #include "reading.h"
 #include "logger.h"

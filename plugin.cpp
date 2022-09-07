@@ -29,7 +29,7 @@ using namespace std;
     RECONNECTION_DELAY : 1,                             \
     MY_IDCODE : 7,                                      \
     STREAMSOURCE_IDCODE : 2,                            \
-    SPLIT_STATIONS : true,                              \
+    SPLIT_STATIONS : false,                              \
     STN_IDCODES_FILTER : [7],                           \
     REQUEST_CONFIG_TO_SENDER : true,                    \
     SENDER_HARD_CONFIG : {                              \

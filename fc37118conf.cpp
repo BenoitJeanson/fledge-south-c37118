@@ -82,6 +82,7 @@ void FC37118Conf::import_json(const std::string &json_config)
     is_complete &= retrieve(&doc, MY_IDCODE, &m_my_IDCODE);
 
     is_complete &= retrieve(&doc, STREAMSOURCE_IDCODE, &m_pmu_IDCODE);
+    is_complete &= retrieve(&doc, STN_IDCODES_FILTER, &m_stn_idcodes_filter);
     is_complete &= retrieve(&doc, SPLIT_STATIONS, &m_is_split_stations);
     is_complete &= retrieve(&doc, REQUEST_CONFIG_TO_SENDER, &m_request_config_to_pmu);
 

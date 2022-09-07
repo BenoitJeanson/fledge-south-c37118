@@ -239,6 +239,56 @@ bool FC37118::m_init_receiving()
 }
 
 /**
+ * @brief extended log of the c37.118 configuration
+ *
+ */
+void FC37118::m_log_configuration()
+{
+    Logger::getLogger()->debug("Configuration Log:");
+
+    Logger::getLogger()->debug("  STREAMSOURCE_IDCODE: %u", m_config_frame->IDCODE_get());
+
+    Logger::getLogger()->debug("  TIME_BASE: %u", m_config_frame->TIME_BASE_get());
+    Logger::getLogger()->debug("  NUM_PMU: %u", m_config_frame->NUM_PMU_get());
+    Logger::getLogger()->debug("  DATA_RATE: %i", m_config_frame->DATA_RATE_get());
+
+    for (auto pmu_station : m_config_frame->pmu_station_list)
+    {
+        Logger::getLogger()->debug("  pmuStation STN: " + pmu_station->STN_get());
+        Logger::getLogger()->debug("    pmuStation IDCODE: %u", pmu_station->IDCODE_get());
+        Logger::getLogger()->debug("    pmuStation FORMAT_COORD: %d", pmu_station->FORMAT_COORD_get());
+        Logger::getLogger()->debug("    pmuStation FORMAT_PHASOR_TYPE: %d", pmu_station->FORMAT_PHASOR_TYPE_get());
+        Logger::getLogger()->debug("    pmuStation FORMAT_ANALOG_TYPE: %d", pmu_station->FORMAT_ANALOG_TYPE_get());
+        Logger::getLogger()->debug("    pmuStation FORMAT_FREQ_TYPE: %d", pmu_station->FORMAT_FREQ_TYPE_get());
+        Logger::getLogger()->debug("    pmuStation FORMAT: %u", pmu_station->FORMAT_get());
+        Logger::getLogger()->debug("    pmuStation PHNMR: %u", pmu_station->PHNMR_get());
+        int count = 0;
+        for (int i = 0; i < pmu_station->PHNMR_get(); i++)
+        {
+            Logger::getLogger()->debug("      pmuStation CHNAM PH %i: " + pmu_station->PH_NAME_get(i), count++);
+            Logger::getLogger()->debug("      pmuStation PHUNIT: %u ", pmu_station->PHUNIT_get(i));
+        }
+
+        Logger::getLogger()->debug("    pmuStation ANNMR: %u", pmu_station->ANNMR_get());
+        for (int i = 0; i < pmu_station->ANNMR_get(); i++)
+        {
+            Logger::getLogger()->debug("      pmuStation CHNAM AN %i: " + pmu_station->AN_NAME_get(i), count++);
+            Logger::getLogger()->debug("      pmuStation ANUNIT: %u", pmu_station->ANUNIT_get(i));
+        }
+
+        Logger::getLogger()->debug("    pmuStation DGNMR: %u", pmu_station->DGNMR_get());
+        for (int i = 0; i < pmu_station->DGNMR_get(); i++)
+        {
+            for (int j = 0; j < 16; j++)
+            {
+                Logger::getLogger()->debug("        pmuStation CHNAM DG %i: " + pmu_station->DG_NAME_get(j), count++);
+            }
+            Logger::getLogger()->debug("      pmuStation DGUNIT: %u ", pmu_station->DGUNIT_get(i));
+        }
+    }
+}
+
+/**
  * @brief Receive the real time data from the c37.118 equipment. Leaves once  Wait for the configuration to be ready before requesting data.
  */
 void FC37118::m_receiveAndPushDatapoints()
@@ -299,55 +349,6 @@ void FC37118::ingest(Reading &reading)
 {
     (*m_ingest)(m_data, reading);
 }
-/**
- * @brief extended log of the c37.118 configuration
- *
- */
-void FC37118::m_log_configuration()
-{
-    Logger::getLogger()->debug("Configuration Log:");
-
-    Logger::getLogger()->debug("  STREAMSOURCE_IDCODE: %u", m_config_frame->IDCODE_get());
-
-    Logger::getLogger()->debug("  TIME_BASE: %u", m_config_frame->TIME_BASE_get());
-    Logger::getLogger()->debug("  NUM_PMU: %u", m_config_frame->NUM_PMU_get());
-    Logger::getLogger()->debug("  DATA_RATE: %i", m_config_frame->DATA_RATE_get());
-
-    for (auto pmu_station : m_config_frame->pmu_station_list)
-    {
-        Logger::getLogger()->debug("  pmuStation STN: " + pmu_station->STN_get());
-        Logger::getLogger()->debug("    pmuStation IDCODE: %u", pmu_station->IDCODE_get());
-        Logger::getLogger()->debug("    pmuStation FORMAT_COORD: %d", pmu_station->FORMAT_COORD_get());
-        Logger::getLogger()->debug("    pmuStation FORMAT_PHASOR_TYPE: %d", pmu_station->FORMAT_PHASOR_TYPE_get());
-        Logger::getLogger()->debug("    pmuStation FORMAT_ANALOG_TYPE: %d", pmu_station->FORMAT_ANALOG_TYPE_get());
-        Logger::getLogger()->debug("    pmuStation FORMAT_FREQ_TYPE: %d", pmu_station->FORMAT_FREQ_TYPE_get());
-        Logger::getLogger()->debug("    pmuStation FORMAT: %u", pmu_station->FORMAT_get());
-        Logger::getLogger()->debug("    pmuStation PHNMR: %u", pmu_station->PHNMR_get());
-        int count = 0;
-        for (int i = 0; i < pmu_station->PHNMR_get(); i++)
-        {
-            Logger::getLogger()->debug("      pmuStation CHNAM PH %i: " + pmu_station->PH_NAME_get(i), count++);
-            Logger::getLogger()->debug("      pmuStation PHUNIT: %u ", pmu_station->PHUNIT_get(i));
-        }
-
-        Logger::getLogger()->debug("    pmuStation ANNMR: %u", pmu_station->ANNMR_get());
-        for (int i = 0; i < pmu_station->ANNMR_get(); i++)
-        {
-            Logger::getLogger()->debug("      pmuStation CHNAM AN %i: " + pmu_station->AN_NAME_get(i), count++);
-            Logger::getLogger()->debug("      pmuStation ANUNIT: %u", pmu_station->ANUNIT_get(i));
-        }
-
-        Logger::getLogger()->debug("    pmuStation DGNMR: %u", pmu_station->DGNMR_get());
-        for (int i = 0; i < pmu_station->DGNMR_get(); i++)
-        {
-            for (int j = 0; j < 16; j++)
-            {
-                Logger::getLogger()->debug("        pmuStation CHNAM DG %i: " + pmu_station->DG_NAME_get(j), count++);
-            }
-            Logger::getLogger()->debug("      pmuStation DGUNIT: %u ", pmu_station->DGUNIT_get(i));
-        }
-    }
-}
 
 template <typename T>
 Datapoint *create_dp(const std::string &name, const T &value)
@@ -369,6 +370,57 @@ Datapoint *create_dp_list(const std::string &name, std::vector<Datapoint *> *dps
     auto dpv = DatapointValue(dps, is_dict);
 
     return new Datapoint(name, dpv);
+}
+
+/**
+ * @brief transform the c37118 dataframe to fledge Reading
+ *
+ * @return Reading
+ */
+
+vector<Reading *> FC37118::m_dataframe_to_reading()
+{
+    auto v_filter = m_conf->get_stn_idcodes_filter();
+    std::vector<Reading *> readings;
+    auto dp_SOC = create_dp(DP_SOC, (long)(m_data_frame->SOC_get()));
+    auto dp_FRACSEC = create_dp(DP_FRACSEC, (long)(m_data_frame->FRACSEC_get()));
+    auto dp_TIME_BASE = create_dp(DP_TIME_BASE, (long)(m_config_frame->TIME_BASE_get()));
+    auto dp_time = create_dp_list(DP_TIMESTAMP, new std::vector<Datapoint *>({dp_SOC, dp_FRACSEC, dp_TIME_BASE}), true);
+
+    auto pmu_dps = new std::vector<Datapoint *>;
+    for (auto pmu_station : m_config_frame->pmu_station_list)
+    {
+        if (!v_filter.empty())
+        {
+            Logger::getLogger()->debug("v_filter is not empty");
+            if (std::find(v_filter.begin(), v_filter.end(), pmu_station->IDCODE_get()) == v_filter.end()) // IDCODE not found
+                continue;
+        }
+        auto dp_pmu_station = m_pmu_station_to_datapoint(pmu_station);
+        if (m_conf->is_split_stations())
+        {
+            auto dp_reading = create_dp_list("Single_PMU", new std::vector<Datapoint *>({new Datapoint(*dp_time), dp_pmu_station}), true);
+            readings.push_back(
+                new Reading(to_string(m_config_frame->IDCODE_get()) + "-" + to_string(pmu_station->IDCODE_get()),
+                            dp_reading));
+        }
+        else
+            pmu_dps->push_back(dp_pmu_station);
+    }
+
+    if (pmu_dps->empty() || m_conf->is_split_stations())
+    {
+        delete dp_time;
+        delete pmu_dps;
+    }
+    else
+    {
+        auto dp_pmu_stations = create_dp_list(DP_PMUSTATIONS, pmu_dps, true);
+        auto dp_reading = create_dp_list("Multi_PMU", new std::vector<Datapoint *>({dp_time, dp_pmu_stations}), true);
+        readings.push_back(new Reading(to_string(m_config_frame->IDCODE_get()), dp_reading));
+    }
+
+    return readings;
 }
 
 Datapoint *FC37118::m_pmu_station_to_datapoint(PMU_Station *pmu_station)
@@ -399,48 +451,4 @@ Datapoint *FC37118::m_pmu_station_to_datapoint(PMU_Station *pmu_station)
     }
     auto dp_analogs = create_dp_list(DP_ANALOGS, analog_dps, true);
     return create_dp_list(READING_PREFIX + to_string(pmu_station->IDCODE_get()), new std::vector<Datapoint *>({dp_id, dp_frequency, dp_phasors, dp_analogs}), true);
-}
-
-/**
- * @brief transform the c37118 dataframe to fledge Reading
- *
- * @return Reading
- */
-
-vector<Reading *> FC37118::m_dataframe_to_reading()
-{
-    std::vector<Reading *> readings;
-    auto dp_SOC = create_dp(DP_SOC, (long)(m_data_frame->SOC_get()));
-    auto dp_FRACSEC = create_dp(DP_FRACSEC, (long)(m_data_frame->FRACSEC_get()));
-    auto dp_TIME_BASE = create_dp(DP_TIME_BASE, (long)(m_config_frame->TIME_BASE_get()));
-    auto dp_time = create_dp_list(DP_TIMESTAMP, new std::vector<Datapoint *>({dp_SOC, dp_FRACSEC, dp_TIME_BASE}), true);
-
-    auto pmu_dps = new std::vector<Datapoint *>;
-    for (auto pmu_station : m_config_frame->pmu_station_list)
-    {
-        // if (m_conf->get_stn_idcodes_filter()o)
-        auto dp_pmu_station = m_pmu_station_to_datapoint(pmu_station);
-        if (m_conf->is_split_stations())
-        {
-            auto dp_reading = create_dp_list("Single_PMU", new std::vector<Datapoint *>({new Datapoint(*dp_time), dp_pmu_station}), true);
-            readings.push_back(
-                new Reading(to_string(m_config_frame->IDCODE_get()) + "-" + to_string(pmu_station->IDCODE_get()),
-                            dp_reading));
-        }
-        else
-            pmu_dps->push_back(dp_pmu_station);
-    }
-
-    if (!m_conf->is_split_stations())
-    {
-        auto dp_pmu_stations = create_dp_list(DP_PMUSTATIONS, pmu_dps, true);
-        auto dp_reading = create_dp_list("Multi_PMU", new std::vector<Datapoint *>({dp_time, dp_pmu_stations}), true);
-        readings.push_back(new Reading(to_string(m_config_frame->IDCODE_get()), dp_reading));
-    }
-    else
-    {
-        delete dp_time;
-        delete pmu_dps;
-    }
-    return readings;
 }

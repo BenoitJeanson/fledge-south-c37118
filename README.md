@@ -27,7 +27,9 @@ C37.118 enables to retrieve the configuration of the sender, that's the easiest 
 `SPLIT_STATIONS`: From one stream source, C37.118 allow to have multiple data sources. You can decide wether 
 
 * `true` the plugin desagregate the sources into individual readings
-* `false` the plugin keeps the multiple sources into one reading. 
+* `false` the plugin keeps the multiple sources into one reading.
+
+You can filter on the IDCODE of the stations by filling in `STATION_IDCODES_FILTER`. If empty, then no filtering is implemented.
 
 
 ## Testing

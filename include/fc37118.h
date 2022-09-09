@@ -16,10 +16,10 @@
 #include <arpa/inet.h>
 #include <thread>
 #include <chrono>
-#include <future>
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <bitset>
 
 
 #include "reading.h"
@@ -41,28 +41,40 @@
 #define C37118_CMD_SEND_CONFIGURATION_1 0x04
 #define C37118_CMD_SEND_CONFIGURATION_2 0x05
 
-#define READING_PREFIX "c37118-IDCODE "
+#define PMU_DATA "PMU_data"
 
 #define DP_TIMESTAMP "TimeStamp"
 #define DP_SOC "SOC"
 #define DP_FRACSEC "FRACSEC"
 #define DP_TIME_BASE "TIME_BASE"
+#define DP_LS "LeapSecond"
+#define DP_LS_DIR_ADD "DirectionAdd"
+#define DP_LS_OCCURS "Occurs"
+#define DP_LS_PENDING "Pending"
+#define DP_TIME_QUALITY "QualityIndicator"
 
 #define DP_PMUSTATIONS "PMUStations"
+#define DP_SINGLE_PMU "Single_PMU"
+#define DP_MULTI_PMU "Multi_PMU"
 
-#define DP_ID "id"
+#define DP_ID "Id"
 #define DP_IDCODE "IDCODE"
 #define DP_STN "STN"
+#define DP_QUAL "MeasurementQuality"
+#define DP_TIME_SYNC "PMUSync"
 
 #define DP_FREQUENCY "Frequency"
 #define DP_FREQ "FREQ"
 #define DP_DFREQ "DFREQ"
 
-#define DP_PHASORS "phasors"
-#define DP_MAGNITUDE "mag"
-#define DP_ANGLE "angle"
+#define DP_LABEL "Label"
+#define DP_VALUE "Value"
 
-#define DP_ANALOGS "analogs"
+#define DP_PHASORS "Phasors"
+#define DP_MAGNITUDE "Mag"
+#define DP_ANGLE "Ang"
+
+#define DP_ANALOGS "Analogs"
 
 typedef void (*INGEST_CB)(void *, Reading);
 

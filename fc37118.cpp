@@ -357,6 +357,12 @@ Datapoint *create_dp(const std::string &name, const T &value)
     return new Datapoint(name, dpv);
 }
 
+Datapoint *create_dp_bool(const std::string &name, const bool &value)
+{
+    auto dpv = DatapointValue(value ? "true" : "false");
+    return new Datapoint(name, dpv);
+}
+
 /**
  * @brief Create a composed data point object
  *
@@ -372,6 +378,31 @@ Datapoint *create_dp_list(const std::string &name, std::vector<Datapoint *> *dps
     return new Datapoint(name, dpv);
 }
 
+unsigned long get_frac_sec_value(unsigned long fracsec)
+{
+    return fracsec & 0x00FFFFFF;
+}
+
+bool get_frac_sec_leap_second_direction(unsigned long fracsec)
+{
+    return ((fracsec << 2) & 1) == 0;
+}
+
+bool get_frac_sec_leap_second_occurs(unsigned long fracsec)
+{
+    return (fracsec << 3) & 1 == 1;
+}
+
+bool get_frac_sec_leap_second_pending(unsigned long fracsec)
+{
+    return (fracsec << 4) & 1 == 1;
+}
+
+bool get_frac_sec_leap_quality_indication(unsigned long fracsec)
+{
+    return (fracsec << 8) & 0xff == 1;
+}
+
 /**
  * @brief transform the c37118 dataframe to fledge Reading
  *
@@ -383,9 +414,15 @@ vector<Reading *> FC37118::m_dataframe_to_reading()
     auto v_filter = m_conf->get_stn_idcodes_filter();
     std::vector<Reading *> readings;
     auto dp_SOC = create_dp(DP_SOC, (long)(m_data_frame->SOC_get()));
-    auto dp_FRACSEC = create_dp(DP_FRACSEC, (long)(m_data_frame->FRACSEC_get()));
+    auto frac_sec = m_data_frame->FRACSEC_get();
+    auto dp_FRACSEC = create_dp(DP_FRACSEC, (long)(get_frac_sec_value(frac_sec)));
     auto dp_TIME_BASE = create_dp(DP_TIME_BASE, (long)(m_config_frame->TIME_BASE_get()));
-    auto dp_time = create_dp_list(DP_TIMESTAMP, new std::vector<Datapoint *>({dp_SOC, dp_FRACSEC, dp_TIME_BASE}), true);
+    auto dp_time_quality = create_dp(DP_TIME_QUALITY, (long)get_frac_sec_leap_quality_indication(frac_sec));
+    auto dp_ls_direction = create_dp_bool(DP_LS_DIR_ADD, get_frac_sec_leap_second_direction(frac_sec));
+    auto dp_ls_occurs = create_dp_bool(DP_LS_OCCURS, get_frac_sec_leap_second_occurs(frac_sec));
+    auto dp_ls_pending = create_dp_bool(DP_LS_PENDING, get_frac_sec_leap_second_pending(frac_sec));
+    auto dp_ls = create_dp_list(DP_LS, new std::vector<Datapoint *>({dp_ls_direction, dp_ls_occurs, dp_ls_pending}), true);
+    auto dp_time = create_dp_list(DP_TIMESTAMP, new std::vector<Datapoint *>({dp_SOC, dp_FRACSEC, dp_TIME_BASE, dp_time_quality, dp_ls}), true);
 
     auto pmu_dps = new std::vector<Datapoint *>;
     for (auto pmu_station : m_config_frame->pmu_station_list)
@@ -399,7 +436,7 @@ vector<Reading *> FC37118::m_dataframe_to_reading()
         auto dp_pmu_station = m_pmu_station_to_datapoint(pmu_station);
         if (m_conf->is_split_stations())
         {
-            auto dp_reading = create_dp_list("Single_PMU", new std::vector<Datapoint *>({new Datapoint(*dp_time), dp_pmu_station}), true);
+            auto dp_reading = create_dp_list(DP_SINGLE_PMU, new std::vector<Datapoint *>({new Datapoint(*dp_time), dp_pmu_station}), true);
             readings.push_back(
                 new Reading(to_string(m_config_frame->IDCODE_get()) + "-" + to_string(pmu_station->IDCODE_get()),
                             dp_reading));
@@ -415,19 +452,32 @@ vector<Reading *> FC37118::m_dataframe_to_reading()
     }
     else
     {
-        auto dp_pmu_stations = create_dp_list(DP_PMUSTATIONS, pmu_dps, true);
-        auto dp_reading = create_dp_list("Multi_PMU", new std::vector<Datapoint *>({dp_time, dp_pmu_stations}), true);
+        auto dp_pmu_stations = create_dp_list(DP_PMUSTATIONS, pmu_dps, false);
+        auto dp_reading = create_dp_list(DP_MULTI_PMU, new std::vector<Datapoint *>({dp_time, dp_pmu_stations}), true);
         readings.push_back(new Reading(to_string(m_config_frame->IDCODE_get()), dp_reading));
     }
 
     return readings;
 }
 
+bool get_stat_quality(unsigned short stat)
+{
+    return (stat & 0xC000) << 2 == 0;
+}
+
+bool get_stat_sync(unsigned short stat)
+{
+    return ((stat << 3) & 1) == 0;
+}
+
 Datapoint *FC37118::m_pmu_station_to_datapoint(PMU_Station *pmu_station)
 {
     auto dp_IDCODE = create_dp(DP_IDCODE, (double)(pmu_station->IDCODE_get()));
     auto dp_STN = create_dp(DP_STN, pmu_station->STN_get());
-    auto dp_id = create_dp_list(DP_ID, new std::vector<Datapoint *>({dp_STN, dp_IDCODE}), true);
+    auto stat = pmu_station->STAT_get();
+    auto dp_quality = create_dp_bool(DP_QUAL, get_stat_quality(stat));
+    auto dp_sync = create_dp_bool(DP_TIME_SYNC, get_stat_sync(stat));
+    auto dp_id = create_dp_list(DP_ID, new std::vector<Datapoint *>({dp_STN, dp_IDCODE, dp_quality, dp_sync}), true);
 
     auto dp_FREQ = create_dp(DP_FREQ, pmu_station->FREQ_get());
     auto dp_DFREQ = create_dp(DP_DFREQ, pmu_station->DFREQ_get());
@@ -438,17 +488,22 @@ Datapoint *FC37118::m_pmu_station_to_datapoint(PMU_Station *pmu_station)
     {
         auto dp_mag = create_dp(DP_MAGNITUDE, abs(pmu_station->PHASOR_VALUE_get(k)));
         auto dp_angle = create_dp(DP_ANGLE, arg(pmu_station->PHASOR_VALUE_get(k)));
-        auto dp_val = create_dp_list(pmu_station->PH_NAME_get(k), new std::vector<Datapoint *>({dp_mag, dp_angle}), true);
-        phasor_dps->push_back(dp_val);
+        auto dp_val = create_dp_list(DP_VALUE, new std::vector<Datapoint *>({dp_mag, dp_angle}), true);
+        auto dp_label = create_dp(DP_LABEL, pmu_station->PH_NAME_get(k));
+        auto dp_phasor = create_dp_list(DP_VALUE, new std::vector<Datapoint *>({dp_label, dp_val}), true);
+        phasor_dps->push_back(dp_phasor);
     }
-    auto dp_phasors = create_dp_list(DP_PHASORS, phasor_dps, true);
+    auto dp_phasors = create_dp_list(DP_PHASORS, phasor_dps, false);
+    auto test = pmu_station->STAT_get();
 
     auto analog_dps = new std::vector<Datapoint *>;
     for (int k = 0; k < pmu_station->ANNMR_get(); k++)
     {
-        auto dp_an = create_dp(pmu_station->AN_NAME_get(k), pmu_station->ANALOG_VALUE_get(k));
+        auto dp_label = create_dp(DP_LABEL, pmu_station->AN_NAME_get(k));
+        auto dp_an_value = create_dp(DP_VALUE, pmu_station->ANALOG_VALUE_get(k));
+        auto dp_an = create_dp_list(DP_VALUE, new std::vector<Datapoint *>({dp_label, dp_an_value}), true);
         analog_dps->push_back(dp_an);
     }
-    auto dp_analogs = create_dp_list(DP_ANALOGS, analog_dps, true);
-    return create_dp_list(READING_PREFIX + to_string(pmu_station->IDCODE_get()), new std::vector<Datapoint *>({dp_id, dp_frequency, dp_phasors, dp_analogs}), true);
+    auto dp_analogs = create_dp_list(DP_ANALOGS, analog_dps, false);
+    return create_dp_list(PMU_DATA, new std::vector<Datapoint *>({dp_id, dp_frequency, dp_phasors, dp_analogs}), true);
 }
